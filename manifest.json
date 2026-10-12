@@ -72,7 +72,7 @@
       "run_at": "document_idle"
     },
     {
-      "matches": ["https://www.linkedin.com/my-items/*", "https://myjobs.indeed.com/*"],
+      "matches": ["https://www.linkedin.com/jobs-tracker/*", "https://www.linkedin.com/my-items/*", "https://myjobs.indeed.com/*"],
       "js": ["src/content/applied.js"],
       "run_at": "document_idle"
     }

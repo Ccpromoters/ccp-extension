@@ -1,6 +1,10 @@
 // Content script for job boards: reads the job posting on the page (title, company, location,
 // description) on request, and quietly reports postings the user views so the extension can
 // build a skills-gap picture. Nothing leaves the browser.
+//
+// LinkedIn (checked 12 Oct 2026) uses obfuscated class names, so it is read from structure and
+// text: the tab title ("Job | Company | LinkedIn"), the "About the job" heading and the text
+// segments of the job pane. The other boards use selector lists with a generic fallback.
 (() => {
   if (window.__ccpJobPage) return;
   window.__ccpJobPage = true;
@@ -13,13 +17,23 @@
     : /monster\.com$/.test(host) ? "monster"
     : /glassdoor\.com$/.test(host) ? "glassdoor" : "web";
 
+  const clean = (s) => (s || "").replace(/\s+/g, " ").trim();
+  const text = (el) => (el ? (el.innerText || el.textContent || "").replace(/[ \t]+\n/g, "\n").trim() : "");
+
+  function leaves(root) {
+    const out = [];
+    if (!root) return out;
+    const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    let n;
+    while ((n = w.nextNode())) {
+      if (n.parentElement && /^(SCRIPT|STYLE|NOSCRIPT)$/.test(n.parentElement.tagName)) continue;
+      const t = clean(n.textContent);
+      if (t) out.push(t);
+    }
+    return out;
+  }
+
   const SEL = {
-    linkedin: {
-      title: [".job-details-jobs-unified-top-card__job-title h1", ".job-details-jobs-unified-top-card__job-title", "h1.t-24", ".jobs-unified-top-card__job-title", "h1.top-card-layout__title", "h1"],
-      company: [".job-details-jobs-unified-top-card__company-name a", ".job-details-jobs-unified-top-card__company-name", ".jobs-unified-top-card__company-name a", ".jobs-unified-top-card__company-name", "a.topcard__org-name-link", "[data-tracking-control-name='public_jobs_topcard-org-name']"],
-      location: [".job-details-jobs-unified-top-card__tertiary-description-container span", ".job-details-jobs-unified-top-card__bullet", ".jobs-unified-top-card__bullet", ".topcard__flavor--bullet"],
-      desc: ["#job-details", ".jobs-description__content", ".jobs-box__html-content", ".description__text", ".show-more-less-html__markup"],
-    },
     indeed: {
       title: ["h1[data-testid='jobsearch-JobInfoHeader-title']", ".jobsearch-JobInfoHeader-title", "h1"],
       company: ["[data-testid='inlineHeader-companyName']", "[data-company-name='true']", "[data-testid='jobsearch-CompanyInfoContainer'] a", ".jobsearch-InlineCompanyRating div"],
@@ -53,47 +67,102 @@
     web: { title: ["h1"], company: [], location: [], desc: [] },
   };
 
-  const text = (el) => (el ? (el.innerText || el.textContent || "").replace(/\s+\n/g, "\n").trim() : "");
   const pick = (sels, min = 1, max = 300) => {
     for (const s of sels) {
       for (const el of document.querySelectorAll(s)) {
-        const t = text(el);
+        const t = clean(el.innerText);
         if (t.length >= min && t.length <= max) return t;
       }
     }
     return "";
   };
 
-  function description() {
-    const s = SEL[board]?.desc || [];
-    for (const sel of s) {
-      const el = document.querySelector(sel);
-      const t = text(el);
-      if (t.length > 200) return t;
+  /** Element that holds the heading "About the job" (or similar), if any. */
+  function findHeading(rx) {
+    return [...document.querySelectorAll("h1,h2,h3,h4,strong,div,span,p")].find((e) => e.children.length <= 1 && rx.test(clean(e.innerText)));
+  }
+
+  function largestBlock() {
+    let best = null;
+    for (const el of document.querySelectorAll("main, article, section, div")) {
+      const len = (el.innerText || "").length;
+      if (len < 300 || len > 25000) continue;
+      const kids = el.querySelectorAll("div,section,article").length;
+      if (!best || (len > best.len && kids < 400)) best = { el, len };
     }
-    // Fallback: the largest description-looking block on the page.
-    let best = "";
-    for (const el of document.querySelectorAll("main, article, [id*='escription'], [class*='escription'], [class*='job-detail'], [class*='jobDetail'], [class*='JobDetail']")) {
-      const t = text(el);
-      if (t.length > best.length) best = t;
+    return best ? text(best.el) : text(document.body).slice(0, 20000);
+  }
+
+  function extractLinkedIn() {
+    const heading = findHeading(/^about the job$/i);
+    let section = heading;
+    while (section && clean(section.innerText).length < 300) section = section.parentElement;
+    let pane = null;
+    if (section) {
+      let p = section.parentElement;
+      while (p && p !== document.body) {
+        const L = leaves(p);
+        if (L.length < 500 && L.some((t) => /^(easy apply|apply|save|saved)$/i.test(t))) {
+          pane = p;
+          break;
+        }
+        p = p.parentElement;
+      }
     }
-    if (best.length > 200) return best.slice(0, 20000);
-    return text(document.body).slice(0, 20000);
+    let title = "";
+    let company = "";
+    let loc = "";
+    const tm = (document.title || "").replace(/^\(\d+\)\s*/, "").match(/^(.*?)\s*\|\s*(.*?)\s*\|\s*LinkedIn$/);
+    if (tm && /\/jobs\/view\//.test(location.pathname)) {
+      title = tm[1].trim();
+      company = tm[2].trim();
+    }
+    // Button labels that sit between company and title in the job pane.
+    const BTN = /^(share|show more options|save|saved|easy apply|apply|dismiss|follow|following|report|more|·|see more|see less|show more|show less)$/i;
+    if (title) {
+      // Job view page: the top card is the first thing in <main>: company, title, location.
+      const M = leaves(document.querySelector("main") || document.body).slice(0, 30);
+      const i = M.indexOf(title);
+      if (i >= 0) {
+        if (!company) company = M[i - 1] || "";
+        loc = M[i + 1] || "";
+      }
+    } else {
+      // Search page pane: company, (buttons), title, location.
+      const P = leaves(pane || document.querySelector("main") || document.body).filter((t) => !BTN.test(t));
+      company = P[0] || "";
+      title = P[1] || "";
+      loc = P[2] || "";
+    }
+    if (/^·$|ago$|applicants|^\d/i.test(loc) || loc.length > 80) loc = "";
+    const desc = section ? text(section).replace(/^about the job\s*/i, "") : largestBlock();
+    return { title, company, location: loc, text: desc };
+  }
+
+  function extractGeneric() {
+    const s = SEL[board] || SEL.web;
+    let title = pick(s.title, 2, 160) || (document.title || "").split(/\s[|\-–]\s/)[0].trim();
+    title = title.replace(/^\(\d+\)\s*/, "");
+    let desc = "";
+    for (const sel of s.desc) {
+      const t = text(document.querySelector(sel));
+      if (t.length > 200) {
+        desc = t;
+        break;
+      }
+    }
+    if (!desc) {
+      const h = findHeading(/^(about the job|job description|description|about this job|about the role)$/i);
+      let sec = h;
+      while (sec && clean(sec.innerText).length < 300) sec = sec.parentElement;
+      desc = sec ? text(sec) : largestBlock();
+    }
+    return { title, company: pick(s.company, 2, 100), location: pick(s.location, 2, 100), text: desc };
   }
 
   function extract() {
-    const s = SEL[board] || SEL.web;
-    let title = pick(s.title, 2, 160) || (document.title || "").split(/\s[|\-–]\s/)[0].trim();
-    title = title.replace(/^\(\d+\)\s*/, "").replace(/\s*\n.*$/s, "");
-    return {
-      url: location.href,
-      pageTitle: document.title,
-      board,
-      title,
-      company: pick(s.company, 2, 100),
-      location: pick(s.location, 2, 100),
-      text: description(),
-    };
+    const r = board === "linkedin" ? extractLinkedIn() : extractGeneric();
+    return { url: location.href, pageTitle: document.title, board, ...r, text: (r.text || "").slice(0, 20000) };
   }
 
   chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
@@ -111,15 +180,16 @@
   let timer = null;
   const tick = () => {
     const u = location.href;
-    if (u === lastUrl || !looksLikeJob(u)) return;
+    if (u === lastUrl || !looksLikeJob(u) || document.visibilityState !== "visible") return;
     lastUrl = u;
     clearTimeout(timer);
     timer = setTimeout(() => {
       try {
         const jd = extract();
         if (jd.text.length > 300 && jd.title) chrome.runtime.sendMessage({ type: "JD_CAPTURED", jd }).catch(() => {});
+        else lastUrl = "";
       } catch {}
-    }, 2500);
+    }, 3000);
   };
   tick();
   setInterval(tick, 1500);

@@ -9,7 +9,7 @@ export const BOARDS = {
     jobView: [/\/jobs\/view\/(\d+)/],
     applyFlow: [/\/jobs\/view\/\d+\/post-apply/i, /\/jobs\/application\//i],
     applied: [/\/post-apply\//i],
-    appliedList: "https://www.linkedin.com/my-items/saved-jobs/?cardType=APPLIED",
+    appliedList: "https://www.linkedin.com/jobs-tracker/?stage=applied",
     mailSenders: [/jobs-noreply@linkedin\.com/i, /@linkedin\.com$/i],
   },
   indeed: {
@@ -147,6 +147,41 @@ export function parseHistoryTitle(board, pageTitle) {
   const generic = t.replace(/\s*[|\-–]\s*(LinkedIn|Indeed(?:\.com)?|ZipRecruiter|Dice(?:\.com)?|Monster(?:\.com)?|Glassdoor)\s*$/i, "").trim();
   if ((m = generic.match(/^(.+?)\s+at\s+(.+)$/i)) && m[1].length < 90) return { title: m[1].trim(), company: m[2].trim(), location: "" };
   return { title: generic, company: "", location: "" };
+}
+
+const MONTHS = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, sept: 8, oct: 9, nov: 10, dec: 11 };
+
+/**
+ * Timestamp for the "applied" text a board shows: "Applied 2w ago", "Applied on Indeed on 23 Jun",
+ * "Applied Oct 3, 2026", "Applied 3 days ago". Returns null when nothing is recognised.
+ */
+export function parseAppliedDate(text, now = Date.now()) {
+  const t = (text || "").trim();
+  if (!t) return null;
+  let m;
+  if ((m = t.match(/(\d+)\s*(h|hr|hour|d|day|w|wk|week|mo|month|m|y|year)s?\b\s*ago/i))) {
+    const n = +m[1];
+    const u = m[2].toLowerCase();
+    const ms = /^h/.test(u) ? 3600e3 : /^d/.test(u) ? 86400e3 : /^w/.test(u) ? 7 * 86400e3 : /^mo|^m$/.test(u) ? 30 * 86400e3 : 365 * 86400e3;
+    return now - n * ms;
+  }
+  if ((m = t.match(/\b(\d{1,2})\s+([A-Za-z]{3,9})\.?(?:\s+(\d{4}))?\b/)) && MONTHS[m[2].slice(0, 3).toLowerCase()] !== undefined) {
+    return dateFromParts(+m[1], MONTHS[m[2].slice(0, 3).toLowerCase()], m[3] ? +m[3] : null, now);
+  }
+  if ((m = t.match(/\b([A-Za-z]{3,9})\.?\s+(\d{1,2})(?:,?\s+(\d{4}))?\b/)) && MONTHS[m[1].slice(0, 3).toLowerCase()] !== undefined) {
+    return dateFromParts(+m[2], MONTHS[m[1].slice(0, 3).toLowerCase()], m[3] ? +m[3] : null, now);
+  }
+  if (/\b(today|just now)\b/i.test(t)) return now;
+  if (/\byesterday\b/i.test(t)) return now - 86400e3;
+  return null;
+}
+
+function dateFromParts(day, month, year, now) {
+  const d = new Date(now);
+  const y = year ?? d.getFullYear();
+  let ts = new Date(y, month, day, 12).getTime();
+  if (year == null && ts > now + 86400e3) ts = new Date(y - 1, month, day, 12).getTime();
+  return ts;
 }
 
 /** Stable key for de-duplicating a job across history, Gmail and board lists. */

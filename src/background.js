@@ -1,7 +1,7 @@
 // Service worker: opens job boards, scans history / Gmail / board "applied" pages, captures job
 // descriptions from pages, and answers the side panel. All data stays in chrome.storage.local.
 
-import { BOARDS, DEFAULT_OPEN_ORDER, GMAIL_URL, HISTORY_URL, classifyJobUrl, parseHistoryTitle, jobKey, boardForUrl } from "./lib/boards.js";
+import { BOARDS, DEFAULT_OPEN_ORDER, GMAIL_URL, HISTORY_URL, classifyJobUrl, parseHistoryTitle, parseAppliedDate, jobKey, boardForUrl } from "./lib/boards.js";
 import { classifyMail } from "./lib/classify.js";
 import { getSettings, upsertJobs, upsertMail, addJd, setScanState } from "./lib/storage.js";
 import { findSkills, yearsRequired } from "./lib/skills-dict.js";
@@ -112,15 +112,6 @@ function cleanJobUrl(url) {
   }
 }
 
-function parseAgo(text) {
-  const m = (text || "").match(/(\d+)\s*(h|hr|hour|d|day|w|wk|week|mo|month|m|y|year)/i);
-  if (!m) return null;
-  const n = +m[1];
-  const unit = m[2].toLowerCase();
-  const ms = /^h/.test(unit) ? 3600e3 : /^d/.test(unit) ? 86400e3 : /^w/.test(unit) ? 7 * 86400e3 : /^mo|^m/.test(unit) ? 30 * 86400e3 : 365 * 86400e3;
-  return Date.now() - n * ms;
-}
-
 // ----------------------------------------------------------------------------- open boards
 
 export async function openBoards(settings) {
@@ -209,9 +200,11 @@ async function collectGmailSearch(tabId, index, query) {
     } catch {
       continue;
     }
-    if (!r || !r.ready || r.loading) continue;
+    if (!r || !r.ready) continue;
+    if (r.loading && !r.rows.length) continue;
     result = r;
     if (r.empty) break;
+    // Gmail renders the list progressively: accept once the row count stops changing.
     if (r.rows.length === last && r.rows.length > 0) {
       if (++stable >= 1) break;
     } else stable = 0;
@@ -291,11 +284,12 @@ async function scanAppliedLists() {
       }
       perBoard[key] = items.length;
       for (const it of items) {
-        const ts = parseAgo(it.appliedText) || Date.now();
+        const ts = parseAppliedDate(it.appliedText) || Date.now();
         recs.push({
           key: jobKey({ board: key, jobId: it.jobId, title: it.title, company: it.company }),
           board: key, jobId: it.jobId, title: it.title, company: it.company, location: it.location, url: it.url,
           status: "applied", source: "applied-list", firstSeen: ts, lastSeen: ts, appliedAt: ts,
+          notes: it.status || "",
         });
       }
     } catch (e) {

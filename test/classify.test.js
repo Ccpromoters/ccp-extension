@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { classifyMail } from "../src/lib/classify.js";
-import { classifyJobUrl, parseHistoryTitle, jobKey } from "../src/lib/boards.js";
+import { classifyJobUrl, parseHistoryTitle, parseAppliedDate, jobKey } from "../src/lib/boards.js";
 import { keywordGap, yearsRequired, fieldTags } from "../src/lib/skills-dict.js";
 
 const row = (from, fromEmail, subject, snippet = "") => ({ from, fromEmail, subject, snippet });
@@ -57,6 +57,20 @@ test("parseHistoryTitle extracts title and company from page titles", () => {
   assert.equal(parseHistoryTitle("monster", "IT Infrastructure Administrator | Monster").title, "IT Infrastructure Administrator");
   assert.equal(jobKey({ board: "linkedin", jobId: "1" }), "linkedin:1");
   assert.equal(jobKey({ board: "indeed", title: "Sys Admin", company: "Acme Inc." }), "indeed:sys admin@acme inc");
+});
+
+test("parseAppliedDate understands the boards' applied texts", () => {
+  const now = new Date(2026, 9, 12, 12).getTime(); // 12 Oct 2026
+  const day = 86400e3;
+  assert.equal(parseAppliedDate("Applied 2w ago", now), now - 14 * day);
+  assert.equal(parseAppliedDate("Applied 3 days ago", now), now - 3 * day);
+  assert.equal(parseAppliedDate("Applied 5h ago", now), now - 5 * 3600e3);
+  assert.equal(new Date(parseAppliedDate("Applied on Indeed on 23 Jun", now)).toDateString(), new Date(2026, 5, 23).toDateString());
+  assert.equal(new Date(parseAppliedDate("Applied on Indeed on 30 Dec", now)).toDateString(), new Date(2025, 11, 30).toDateString(), "a future day/month means last year");
+  assert.equal(new Date(parseAppliedDate("Applied Oct 3, 2026", now)).toDateString(), new Date(2026, 9, 3).toDateString());
+  assert.equal(parseAppliedDate("Applied today", now), now);
+  assert.equal(parseAppliedDate("", now), null);
+  assert.equal(parseAppliedDate("Not selected by employer", now), null);
 });
 
 test("skills dictionary: keyword gap, years and field tags", () => {

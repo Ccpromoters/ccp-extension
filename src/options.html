@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CCP Extension – Settings</title>
+  <link rel="stylesheet" href="sidepanel.css">
+  <style>
+    body { max-width: 760px; margin: 0 auto; padding: 0 16px 40px; display: block; }
+    h1 { font-size: 20px; margin: 20px 0 4px; }
+    h2 { font-size: 15px; margin: 26px 0 10px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; }
+    .grid .wide { grid-column: 1 / -1; }
+    .check { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
+    .check input { width: auto; }
+    .resume { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius); margin: 6px 0; }
+    .resume .grow { min-width: 0; }
+    .savebar { position: sticky; bottom: 0; background: var(--bg); padding: 10px 0; border-top: 1px solid var(--line); display: flex; gap: 10px; align-items: center; margin-top: 24px; }
+    .note { background: var(--info-bg); padding: 8px 10px; border-radius: var(--radius); font-size: 12px; }
+    label { font-weight: 600; display: block; margin-bottom: 3px; }
+    input, select, textarea { width: 100%; font: inherit; padding: 7px 8px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg); color: var(--fg); }
+    textarea { min-height: 70px; resize: vertical; }
+    .help { color: var(--muted); font-size: 12px; margin-top: 3px; }
+  </style>
+</head>
+<body>
+  <h1>CCP Extension – Settings</h1>
+  <div class="muted small">Everything below is stored in this Chrome profile only. Each candidate's profile gets its own settings and master resume.</div>
+
+  <h2>Candidate</h2>
+  <div class="grid">
+    <div><label for="candidateName">Candidate name</label><input id="candidateName" placeholder="e.g. Khalid Bhatti"></div>
+    <div><label for="candidateEmail">Candidate email</label><input id="candidateEmail" placeholder="used in reports only"></div>
+    <div class="wide"><label for="targetTitles">Target job titles</label><input id="targetTitles" placeholder="Systems Administrator, Windows Administrator, Release Manager"><div class="help">Comma-separated. Used to focus the skills-gap view.</div></div>
+  </div>
+
+  <h2>Master resumes (.docx)</h2>
+  <div class="note">Upload the candidate's final resume as a Word file. The extension edits a copy per job: it adds JD skills to the existing skills rows and changes at most a couple of bullet points. The master file itself is never changed.</div>
+  <div id="resumeList"></div>
+  <div class="row"><input type="file" id="resumeFile" accept=".docx" style="width:auto"><input id="resumeLabel" placeholder="Label, e.g. Infrastructure / Release Manager"><button id="btnAddResume" class="small">Add resume</button></div>
+  <div id="resumeMsg" class="help"></div>
+
+  <h2>AI (for resume tailoring)</h2>
+  <div class="grid">
+    <div><label for="apiProvider">Provider</label>
+      <select id="apiProvider">
+        <option value="anthropic">Anthropic Claude (recommended)</option>
+        <option value="openai">OpenAI-compatible endpoint</option>
+        <option value="mock">No AI – demo plan (testing only)</option>
+      </select>
+    </div>
+    <div><label for="model">Model</label><select id="model"></select><input id="modelCustom" placeholder="model name" class="hidden" style="margin-top:6px"></div>
+    <div class="wide"><label for="apiKey">API key</label><input id="apiKey" type="password" autocomplete="off" placeholder="sk-ant-…"><div class="help">Stored only in this profile. Sent only to the provider you choose, together with the resume text and the job description. Get a key at console.anthropic.com.</div></div>
+    <div><label for="apiBaseUrl">Base URL (optional)</label><input id="apiBaseUrl" placeholder="https://api.anthropic.com"><div class="help">For proxies or OpenAI-compatible servers (e.g. http://localhost:11434/v1 for Ollama).</div></div>
+    <div><label for="effort">Reasoning effort</label><select id="effort"><option value="low">low</option><option value="medium">medium</option><option value="high" selected>high (recommended)</option><option value="xhigh">xhigh</option></select></div>
+    <div class="wide row"><button id="btnTest" class="small">Test connection</button><span id="testMsg" class="help"></span></div>
+  </div>
+
+  <h2>Tailoring rules</h2>
+  <div class="grid">
+    <div><label for="maxBulletChanges">Max bullet changes per job</label><input id="maxBulletChanges" type="number" min="0" max="6" value="2"></div>
+    <div><label for="maxSkillTerms">Max new skill terms per job</label><input id="maxSkillTerms" type="number" min="0" max="20" value="8"></div>
+    <div class="wide check"><input type="checkbox" id="allowSummaryEdit" checked><label for="allowSummaryEdit" style="margin:0">Allow light rewording of the summary (no new claims)</label></div>
+    <div class="wide"><label for="blockedTerms">Blocked terms (need the candidate's confirmation)</label><textarea id="blockedTerms" placeholder="Veeam, Intune, SolarWinds, Palo Alto, AWS, Jira, Kubernetes…"></textarea><div class="help">Tools or claims the candidate has NOT confirmed. The AI may suggest them, but they are never written into the resume unless you type them into “confirmed terms” for that job.</div></div>
+    <div class="wide"><label for="rules">Candidate rules for the AI</label><textarea id="rules" placeholder="e.g. Cloud stays at concept level only (no hands-on Azure/AWS claims). Keep release-management tools out of the infrastructure resume. Never invent numbers."></textarea></div>
+  </div>
+
+  <h2>Job boards & tabs</h2>
+  <div class="grid">
+    <div>
+      <label>Open these boards</label>
+      <div class="check"><input type="checkbox" id="board_linkedin"><label for="board_linkedin" style="margin:0">LinkedIn Jobs</label></div>
+      <div class="check"><input type="checkbox" id="board_indeed"><label for="board_indeed" style="margin:0">Indeed</label></div>
+      <div class="check"><input type="checkbox" id="board_ziprecruiter"><label for="board_ziprecruiter" style="margin:0">ZipRecruiter</label></div>
+      <div class="check"><input type="checkbox" id="board_dice"><label for="board_dice" style="margin:0">Dice</label></div>
+      <div class="check"><input type="checkbox" id="board_monster"><label for="board_monster" style="margin:0">Monster</label></div>
+      <div class="check"><input type="checkbox" id="board_glassdoor"><label for="board_glassdoor" style="margin:0">Glassdoor</label></div>
+    </div>
+    <div>
+      <label>Also open</label>
+      <div class="check"><input type="checkbox" id="openGmail"><label for="openGmail" style="margin:0">Gmail</label></div>
+      <div class="check"><input type="checkbox" id="openHistory"><label for="openHistory" style="margin:0">Chrome history</label></div>
+      <div class="check"><input type="checkbox" id="openOnStartup"><label for="openOnStartup" style="margin:0">Open all of these when Chrome starts</label></div>
+      <label for="gmailIndex" style="margin-top:8px">Gmail account index</label><input id="gmailIndex" type="number" min="0" max="9" value="0"><div class="help">0 = first account signed in to this profile (mail.google.com/mail/u/0).</div>
+    </div>
+    <div class="wide"><label for="customUrls">Extra URLs to open (one per line)</label><textarea id="customUrls" placeholder="https://www.usajobs.gov/"></textarea></div>
+    <div><label for="scanDays">Scan window (days)</label><input id="scanDays" type="number" min="1" max="365" value="30"></div>
+    <div class="check" style="align-self:end"><input type="checkbox" id="redactContacts" checked><label for="redactContacts" style="margin:0">Hide phone/email from the AI request</label></div>
+  </div>
+
+  <h2>Backup</h2>
+  <div class="row"><button id="btnExport" class="small">Export settings + resumes (JSON)</button><input type="file" id="importFile" accept=".json" style="width:auto"><button id="btnImport" class="small">Import</button><span id="backupMsg" class="help"></span></div>
+  <div class="help">Use this to set up another candidate's Chrome profile quickly, or to move to a new computer. Applications and mail are not included.</div>
+
+  <div class="savebar"><button id="btnSave" class="primary">Save settings</button><span id="saveMsg" class="help"></span></div>
+  <script type="module" src="options.js"></script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+# build output
+dist/
+node_modules/
+
+# never commit candidate data
+*.docx
+*.pdf
+ccp-profile-*.json
+
+# local tooling
+.claude/
+.DS_Store
+Thumbs.db

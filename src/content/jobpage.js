@@ -34,11 +34,12 @@
   }
 
   const SEL = {
+    // Indeed (checked 12 Oct 2026): viewjob pages use vj-* / company-info-* test ids; older ids kept as fallbacks.
     indeed: {
-      title: ["h1[data-testid='jobsearch-JobInfoHeader-title']", ".jobsearch-JobInfoHeader-title", "h1"],
-      company: ["[data-testid='inlineHeader-companyName']", "[data-company-name='true']", "[data-testid='jobsearch-CompanyInfoContainer'] a", ".jobsearch-InlineCompanyRating div"],
-      location: ["[data-testid='inlineHeader-companyLocation']", "[data-testid='job-location']", "[data-testid='jobsearch-JobInfoHeader-companyLocation']"],
-      desc: ["#jobDescriptionText", ".jobsearch-jobDescriptionText", "[data-testid='jobsearch-JobComponent-description']"],
+      title: ["[data-testid='vj-job-title']", "h1[data-testid='jobsearch-JobInfoHeader-title']", ".jobsearch-JobInfoHeader-title", "h2[data-testid='jobsearch-JobInfoHeader-title']", "h1"],
+      company: ["[data-testid='company-info-title-row'] a", "[data-testid='company-info-title-row']", "[data-testid='inlineHeader-companyName']", "[data-company-name='true']", "[data-testid='jobsearch-CompanyInfoContainer'] a"],
+      location: ["[data-testid='company-info-metadata']", "[data-testid='inlineHeader-companyLocation']", "[data-testid='job-location']", "[data-testid='jobsearch-JobInfoHeader-companyLocation']"],
+      desc: ["#jobDescriptionText", ".jobsearch-jobDescriptionText", "[data-testid='jobsearch-JobComponent-description']", "[data-testid='vj-job-description-heading'] + *", "[data-testid='viewjob-job-content']"],
     },
     ziprecruiter: {
       title: ["h1.job_title", "h1[class*='job_title']", "h1[class*='JobTitle']", "h1"],
@@ -67,10 +68,11 @@
     web: { title: ["h1"], company: [], location: [], desc: [] },
   };
 
+  // First line of the first matching element (header rows often carry extra lines such as ratings).
   const pick = (sels, min = 1, max = 300) => {
     for (const s of sels) {
       for (const el of document.querySelectorAll(s)) {
-        const t = clean(el.innerText);
+        const t = clean((el.innerText || "").split("\n").map((x) => x.trim()).filter(Boolean)[0] || "");
         if (t.length >= min && t.length <= max) return t;
       }
     }
@@ -157,7 +159,16 @@
       while (sec && clean(sec.innerText).length < 300) sec = sec.parentElement;
       desc = sec ? text(sec) : largestBlock();
     }
-    return { title, company: pick(s.company, 2, 100), location: pick(s.location, 2, 100), text: desc };
+    let company = pick(s.company, 2, 100);
+    let loc = pick(s.location, 2, 100);
+    // Indeed's header metadata block holds "Company\nLocation" on two lines.
+    const meta = board === "indeed" && document.querySelector("[data-testid='company-info-metadata']");
+    if (meta) {
+      const lines = (meta.innerText || "").split("\n").map((x) => x.trim()).filter(Boolean);
+      if (lines[0]) company = lines[0];
+      loc = lines[1] || "";
+    }
+    return { title, company, location: loc, text: desc };
   }
 
   function extract() {

@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CCP Extension – Job Search Assistant for Chrome</title>
+  <meta name="description" content="CCP Extension is a free Chrome extension for job seekers and career-support teams: opens your job boards, tracks every application from Gmail and browser history, sorts recruiter mail, and tailors your resume to any job description – all inside your browser.">
+  <meta name="keywords" content="CCP Extension, job search chrome extension, resume tailoring, application tracker, LinkedIn, Indeed, Dice, ZipRecruiter, Monster, CCPromoters, CCP Academy">
+  <link rel="canonical" href="https://ccpromoters.github.io/ccp-extension/">
+  <meta property="og:title" content="CCP Extension – Job Search Assistant for Chrome">
+  <meta property="og:description" content="Open your job boards, track applications from Gmail and history, sort recruiter mail, and tailor your resume to any JD – free and open source.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://ccpromoters.github.io/ccp-extension/">
+  <meta property="og:image" content="https://ccpromoters.github.io/ccp-extension/screenshots/resume.png">
+  <link rel="icon" href="https://raw.githubusercontent.com/Ccpromoters/ccp-extension/main/icons/icon48.png">
+  <script type="application/ld+json">
+  {"@context":"https://schema.org","@type":"SoftwareApplication","name":"CCP Extension","applicationCategory":"BrowserApplication","operatingSystem":"Chrome","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"author":{"@type":"Organization","name":"CCPromoters","url":"https://ccpromoters.com"},"url":"https://ccpromoters.github.io/ccp-extension/","downloadUrl":"https://github.com/Ccpromoters/ccp-extension/releases","description":"Chrome extension for job seekers and staffing teams: opens job boards, tracks applications from Gmail and history, sorts recruiter mail, and tailors resumes to job descriptions."}
+  </script>
+  <style>
+    :root { --brand: #1c3b66; --accent: #f59e1c; --fg: #1b2430; --muted: #5f6b78; --bg: #ffffff; --bg2: #f4f6f9; --line: #dde3ea; }
+    @media (prefers-color-scheme: dark) { :root { --fg: #e6e9ee; --muted: #97a1ad; --bg: #141920; --bg2: #1d242d; --line: #2d3540; --brand: #2f5d9a; } }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--fg); background: var(--bg); line-height: 1.55; }
+    .wrap { max-width: 1040px; margin: 0 auto; padding: 0 20px; }
+    header { background: var(--brand); color: #fff; padding: 56px 0 48px; }
+    header .wrap { display: flex; gap: 32px; align-items: center; flex-wrap: wrap; }
+    header img.logo { width: 72px; height: 72px; border-radius: 16px; }
+    h1 { font-size: 38px; margin: 0 0 8px; line-height: 1.15; }
+    .lead { font-size: 19px; margin: 0 0 20px; max-width: 640px; opacity: .95; }
+    .btn { display: inline-block; padding: 12px 20px; border-radius: 10px; font-weight: 700; text-decoration: none; margin: 4px 8px 4px 0; }
+    .btn.primary { background: var(--accent); color: #1b2430; }
+    .btn.ghost { border: 2px solid rgba(255,255,255,.7); color: #fff; }
+    section { padding: 44px 0; }
+    section + section { border-top: 1px solid var(--line); }
+    h2 { font-size: 26px; margin: 0 0 18px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; }
+    .card { background: var(--bg2); border: 1px solid var(--line); border-radius: 12px; padding: 18px; }
+    .card h3 { margin: 0 0 8px; font-size: 17px; }
+    .card p { margin: 0; color: var(--muted); }
+    .shots { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; }
+    .shots img { width: 320px; max-width: 100%; border: 1px solid var(--line); border-radius: 12px; }
+    ol li { margin: 6px 0; }
+    code { background: var(--bg2); padding: 2px 6px; border-radius: 6px; }
+    footer { padding: 28px 0 48px; color: var(--muted); font-size: 14px; border-top: 1px solid var(--line); }
+    .muted { color: var(--muted); }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <img class="logo" src="https://raw.githubusercontent.com/Ccpromoters/ccp-extension/main/icons/icon128.png" alt="CCP Extension logo">
+      <div>
+        <h1>CCP Extension</h1>
+        <p class="lead">A free Chrome extension for job seekers and the career-support teams who work for them: opens your job boards, keeps a truthful record of every application, sorts recruiter mail, and tailors your resume to any job description – all inside your browser.</p>
+        <a class="btn primary" href="https://github.com/Ccpromoters/ccp-extension/releases">Download (GitHub Releases)</a>
+        <a class="btn ghost" href="https://github.com/Ccpromoters/ccp-extension">Source code</a>
+        <div class="muted" style="color:#fff;opacity:.8;margin-top:10px">Chrome Web Store listing: coming soon. Manual install takes one minute.</div>
+      </div>
+    </div>
+  </header>
+
+  <section>
+    <div class="wrap">
+      <h2>What it does</h2>
+      <div class="grid">
+        <div class="card"><h3>Open job boards</h3><p>LinkedIn Jobs, Indeed, ZipRecruiter, Dice, Monster, Gmail and Chrome history in one click, or every time Chrome starts.</p></div>
+        <div class="card"><h3>Applications tracker</h3><p>Reads your own browser history, Gmail confirmations and the boards' "Applied" pages. One list: applied, likely, viewed – with CSV export and a printable weekly report.</p></div>
+        <div class="card"><h3>Recruiter inbox</h3><p>Outreach, right-to-represent requests, interview invitations, rejections and confirmations, tagged by field.</p></div>
+        <div class="card"><h3>Resume tailoring</h3><p>Upload your final resume once. Per job, the extension adds the JD's missing skills to your skills rows and changes at most a couple of bullets – same layout, every other line untouched.</p></div>
+        <div class="card"><h3>Honest gap report</h3><p>What the job asks for that you already have, what you clearly lack, what to confirm – and an experience-years warning. Dates and years are never changed.</p></div>
+        <div class="card"><h3>Skills gap vs. the market</h3><p>Postings you open are collected locally so you can see which skills your target jobs keep asking for.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <h2>Screens</h2>
+      <div class="shots">
+        <img src="screenshots/home.png" alt="Home tab: stats and one-click actions">
+        <img src="screenshots/resume.png" alt="Resume tab: tailoring result with changes and gaps">
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <h2>Install in one minute</h2>
+      <ol>
+        <li>Download <code>ccp-extension-vX.Y.Z.zip</code> from <a href="https://github.com/Ccpromoters/ccp-extension/releases">Releases</a> and unzip it.</li>
+        <li>Open <code>chrome://extensions</code>, switch on <strong>Developer mode</strong>, click <strong>Load unpacked</strong> and pick the unzipped folder.</li>
+        <li>Pin the CCP icon. The settings page opens: add the candidate's name, the master resume (.docx) and an AI key for tailoring.</li>
+      </ol>
+      <p class="muted">Full guide: <a href="https://github.com/Ccpromoters/ccp-extension/blob/main/docs/install.md">docs/install.md</a></p>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <h2>Privacy</h2>
+      <p>No server, no account, no analytics. Everything stays in your Chrome profile. The only network request is the AI call you trigger yourself, sent directly to the provider you configured. Read the <a href="https://github.com/Ccpromoters/ccp-extension/blob/main/PRIVACY.md">privacy policy</a>.</p>
+    </div>
+  </section>
+
+  <footer>
+    <div class="wrap">MIT License © 2026 <a href="https://ccpromoters.com">CCPromoters</a>. Not affiliated with LinkedIn, Indeed, ZipRecruiter, Dice, Monster, Glassdoor, Google or Anthropic.</div>
+  </footer>
+</body>
+</html>

@@ -90,6 +90,17 @@ const fakeBackground = async (msg) => {
     case "GET_ACTIVE_JD": return { url: "https://www.linkedin.com/jobs/view/4012345678/", board: "linkedin", title: "Senior Systems Administrator (Windows / VMware)", company: "Sample Health Systems", location: "Houston, TX", text: SAMPLE_JD };
     case "OPEN_OPTIONS": location.href = "options.html"; return { ok: true };
     case "OPEN_URL": window.open(msg.url, "_blank"); return { ok: true };
+    case "APPLY_OPEN": return { tabId: 7, url: msg.url };
+    case "PAGE_TEXT": return { url: msg.url, title: "Sample job", text: SAMPLE_JD };
+    case "APPLY_SCAN": return { ats: "greenhouse", url: "https://boards.greenhouse.io/sample/jobs/1", title: "Sample", submitText: "Submit application", questions: [
+      { id: "ccp-0", type: "text", label: "First Name", required: true }, { id: "ccp-1", type: "text", label: "Last Name", required: true },
+      { id: "ccp-2", type: "email", label: "Email", required: true }, { id: "ccp-3", type: "file", label: "Resume/CV", required: true },
+      { id: "ccp-4", type: "select", label: "Will you now or in the future require sponsorship for employment visa status?", options: ["Yes", "No"], required: true },
+      { id: "ccp-5", type: "select", label: "Gender", options: ["Male", "Female", "Decline To Self Identify"] } ] };
+    case "APPLY_FILL": return { report: (msg.answers || []).map((a) => ({ id: a.id, ok: true, value: a.answer })) };
+    case "APPLY_SUBMIT": return { clicked: true, text: "Submit application" };
+    case "APPLY_NEXT": return { clicked: false };
+    case "FOCUS_TAB": return { ok: true };
     default: return { error: `dev shim: unknown message ${msg.type}` };
   }
 };
@@ -113,6 +124,6 @@ globalThis.chrome = {
       return 1;
     },
   },
-  permissions: { request: async () => true },
+  permissions: { request: async () => true, contains: async () => true },
 };
 await seed();

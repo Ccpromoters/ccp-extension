@@ -1,6 +1,6 @@
 {
   "name": "ccp-extension",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "CCP Extension - Chrome extension for job-search teams: opens job boards, tracks applications from Gmail and history, and tailors resumes to job descriptions.",
   "private": true,
   "type": "module",

@@ -27,6 +27,17 @@
   <h1>CCP Extension – Settings</h1>
   <div class="muted small">Everything below is stored in this Chrome profile only. Each candidate's profile gets its own settings and master resume.</div>
 
+  <h2>CCP Cloud account</h2>
+  <div class="note">Your CCP account does the AI work (resume tailoring, form answers, job research) – no API key needed. New here? <button id="btnWizard" class="small">Open the setup wizard</button></div>
+  <div class="grid">
+    <div class="wide" id="cloudStatus" class="help">Checking…</div>
+    <div><label for="cloudEmail">Email</label><input id="cloudEmail" type="email"></div>
+    <div><label for="cloudPassword">Password</label><input id="cloudPassword" type="password" autocomplete="current-password"></div>
+    <div><label for="cloudCode">CCP access code</label><input id="cloudCode" placeholder="unlocks AI features"></div>
+    <div><label for="aiMode">AI mode</label><select id="aiMode"><option value="cloud">CCP Cloud (recommended)</option><option value="own">My own API key (below)</option></select></div>
+    <div class="wide row"><button id="btnCloudIn" class="small primary">Sign in</button><button id="btnCloudUp" class="small">Create account</button><button id="btnCloudSync" class="small">Sync profile / unlock</button><button id="btnCloudOut" class="small">Sign out</button><span id="cloudMsg" class="help"></span></div>
+  </div>
+
   <h2>Candidate</h2>
   <div class="grid">
     <div><label for="candidateName">Candidate name</label><input id="candidateName" placeholder="e.g. Khalid Bhatti"></div>
@@ -40,8 +51,8 @@
   <div class="row"><input type="file" id="resumeFile" accept=".docx" style="width:auto"><input id="resumeLabel" placeholder="Label, e.g. Infrastructure / Release Manager"><button id="btnAddResume" class="small">Add resume</button></div>
   <div id="resumeMsg" class="help"></div>
 
-  <h2>AI (for resume tailoring)</h2>
-  <div class="grid">
+  <h2 id="ownKeyHeading">Own AI key (only when AI mode is "My own API key")</h2>
+  <div class="grid" id="ownKeySection">
     <div><label for="apiProvider">Provider</label>
       <select id="apiProvider">
         <option value="anthropic">Anthropic Claude (recommended)</option>

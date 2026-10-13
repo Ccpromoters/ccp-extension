@@ -46,6 +46,20 @@
     </section>
 
     <section id="tab-jobs" class="tab">
+      <div class="card" id="cloudBar">
+        <div class="row">
+          <button id="btnFindJobs" class="primary small">Find jobs for me</button>
+          <input id="findLimit" type="number" value="20" min="5" max="60" title="how many" style="width:64px;flex:0">
+          <span id="findMsg" class="muted small grow"></span>
+        </div>
+        <details><summary class="small">Add employers by name (finds their career-site feed)</summary>
+          <div class="row"><input id="discoverNames" placeholder="e.g. Terracon, Kimley-Horn, Jacobs"><button id="btnDiscover" class="small">Add</button></div>
+        </details>
+      </div>
+      <div id="applyCard"></div>
+      <h3 id="cloudJobsHead">Jobs found for you</h3>
+      <div id="cloudJobs" class="list"></div>
+      <h3>Tracked applications</h3>
       <div class="filters">
         <select id="jobStatus">
           <option value="">All statuses</option>
@@ -98,6 +112,11 @@
       <details id="marketGap" class="field">
         <summary>Skills gap vs. the jobs you viewed</summary>
         <div id="marketGapBody" class="small"></div>
+      </details>
+      <details id="marketDemand" class="field">
+        <summary>Software the market asks for (CCP data)</summary>
+        <div class="row"><select id="marketField" style="flex:1"><option value="civil">Civil / construction</option><option value="it-infra">IT infrastructure</option><option value="security">Cybersecurity</option><option value="cloud">Cloud</option><option value="devops">DevOps</option><option value="dev">Development</option><option value="data">Data</option><option value="it-support">IT support</option><option value="pm">Project management</option></select><input id="marketYears" type="number" min="0" max="40" placeholder="yrs" style="width:64px;flex:0"><button id="btnMarket" class="small">Show</button><button id="btnMarketRefresh" class="small" title="Re-run the market research for this field">Refresh</button></div>
+        <div id="marketBody" class="small"></div>
       </details>
     </section>
   </main>

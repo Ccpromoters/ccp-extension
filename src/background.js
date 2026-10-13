@@ -27,7 +27,7 @@ async function setup() {
 
 chrome.runtime.onInstalled.addListener(async ({ reason }) => {
   await setup();
-  if (reason === "install") chrome.runtime.openOptionsPage();
+  if (reason === "install") chrome.tabs.create({ url: chrome.runtime.getURL("src/onboarding.html") });
 });
 
 chrome.runtime.onStartup.addListener(async () => {
@@ -344,6 +344,23 @@ async function handle(msg, sender) {
     }
     case "GET_ACTIVE_JD": return getActiveJd();
     case "JD_CAPTURED": return captureJd({ ...msg.jd, url: msg.jd?.url || sender?.tab?.url });
+    // ---- application assist (the side panel drives the ATS page through src/content/apply.js)
+    case "APPLY_OPEN": {
+      const tab = await chrome.tabs.create({ url: msg.url, active: msg.active !== false });
+      await waitForLoad(tab.id, 30000);
+      await sleep(1500);
+      return { tabId: tab.id, url: (await chrome.tabs.get(tab.id)).url };
+    }
+    case "APPLY_SCAN": return askTab(msg.tabId, { type: "APPLY_SCAN" }, "src/content/apply.js");
+    case "APPLY_FILL": return askTab(msg.tabId, { type: "APPLY_FILL", answers: msg.answers, resume: msg.resume }, "src/content/apply.js");
+    case "APPLY_SUBMIT": return askTab(msg.tabId, { type: "APPLY_SUBMIT" }, "src/content/apply.js");
+    case "APPLY_NEXT": return askTab(msg.tabId, { type: "APPLY_NEXT" }, "src/content/apply.js");
+    case "PAGE_TEXT": return askTab(msg.tabId, { type: "PAGE_TEXT" }, "src/content/apply.js");
+    case "ACTIVE_TAB": {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      return { tabId: tab?.id, url: tab?.url || "", title: tab?.title || "" };
+    }
+    case "FOCUS_TAB": await chrome.tabs.update(msg.tabId, { active: true }).catch(() => {}); return { ok: true };
     case "OPEN_OPTIONS": chrome.runtime.openOptionsPage(); return { ok: true };
     case "OPEN_URL": await chrome.tabs.create({ url: msg.url, active: msg.active !== false }); return { ok: true };
     default: throw new Error(`Unknown message ${msg?.type}`);

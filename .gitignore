@@ -11,3 +11,6 @@ ccp-profile-*.json
 .claude/
 .DS_Store
 Thumbs.db
+
+# InsForge project link (contains keys)
+backend/.insforge/

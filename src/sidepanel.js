@@ -4,10 +4,11 @@ if (!globalThis.chrome?.runtime?.id) await import("../dev/chrome-shim.js");
 
 import { BOARDS } from "./lib/boards.js";
 import { KIND_LABELS } from "./lib/classify.js";
-import { getSettings, getJobs, getMail, getResumes, getJdLibrary, getScanState, upsertJobs, updateJob, deleteJob, b64ToBytes, addTailorRecord } from "./lib/storage.js";
+import { getSettings, getJobs, getMail, getResumes, getJdLibrary, getScanState, upsertJobs, updateJob, deleteJob, b64ToBytes, bytesToB64, addTailorRecord, getProfile, saveProfile } from "./lib/storage.js";
 import { tailorResume, parseList } from "./lib/tailor.js";
 import { openDocx, blocksText } from "./lib/docx.js";
 import { findSkills } from "./lib/skills-dict.js";
+import { cloudStatus, invoke as cloudInvoke, syncProfile } from "./lib/cloud.js";
 
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -64,13 +65,19 @@ $("#btnSettings").addEventListener("click", () => chrome.runtime.openOptionsPage
 
 // ----------------------------------------------------------------------------- data + render
 
+let cloud = { signedIn: false };
+let cloudJobs = [];
+let apply = null; // the application currently being prepared
+
 async function reload() {
-  [settings, jobs, mail, resumes] = await Promise.all([getSettings(), getJobs(), getMail(), getResumes()]);
-  $("#who").textContent = settings.candidateName ? `${settings.candidateName}${settings.targetTitles ? " · " + settings.targetTitles.split(/[,\n]/)[0].trim() : ""}` : "No candidate set yet — open Settings";
+  [settings, jobs, mail, resumes, cloud] = await Promise.all([getSettings(), getJobs(), getMail(), getResumes(), cloudStatus()]);
+  const who = settings.candidateName ? `${settings.candidateName}${settings.targetTitles ? " · " + settings.targetTitles.split(/[,\n]/)[0].trim() : ""}` : "No candidate set yet — open Settings";
+  $("#who").textContent = cloud.signedIn ? `${who} · ${cloud.accessOk ? "CCP Cloud ✓" : "CCP Cloud (no access code)"}` : `${who} · not signed in to CCP Cloud`;
   renderHome();
   renderJobs();
   renderInbox();
   renderResumeTab();
+  renderCloudJobs();
 }
 
 function jobList() {
@@ -384,9 +391,270 @@ $("#marketGap").addEventListener("toggle", async (e) => {
   }
 });
 
+// ----------------------------------------------------------------------------- CCP Cloud: find jobs + apply assist
+
+function needCloud() {
+  if (!cloud.signedIn) {
+    status("Sign in to CCP Cloud first (Settings → CCP Cloud account).", "error");
+    return false;
+  }
+  return true;
+}
+
+async function loadCloudJobs() {
+  if (!cloud.signedIn) return;
+  try {
+    const r = await cloudInvoke("ccp-log", null, { method: "GET" });
+    cloudJobs = r.jobs || [];
+    renderCloudJobs();
+  } catch (e) {
+    $("#findMsg").textContent = e.message;
+  }
+}
+
+function renderCloudJobs() {
+  const list = $("#cloudJobs");
+  if (!cloud.signedIn) {
+    list.innerHTML = `<div class="empty">Sign in to CCP Cloud (Settings) to search employers' career sites and get one-click applications.</div>`;
+    return;
+  }
+  const open = cloudJobs.filter((j) => ["found", "approved", "prepared"].includes(j.status));
+  if (!open.length) {
+    list.innerHTML = `<div class="empty">No open leads. Click “Find jobs for me”.</div>`;
+    return;
+  }
+  list.innerHTML = open.map((j) => `<div class="item" data-id="${esc(j.id)}">
+      <div class="t"><a href="${esc(j.url)}" target="_blank" rel="noopener">${esc(j.title)}</a></div>
+      <div class="m"><span>${esc(j.company || "")}</span><span>${esc(j.location || "")}</span><span class="badge">${esc(j.ats || j.source || "")}</span>${j.score ? `<span class="badge">${Math.round(j.score * 100)}% match</span>` : ""}${j.years_required ? `<span>${j.years_required}+ yrs</span>` : ""}${j.status === "prepared" ? `<span class="badge likely">prepared</span>` : ""}</div>
+      <div class="acts"><button class="small primary" data-act="apply">Prepare &amp; apply</button><button class="small" data-act="skip">Skip</button></div>
+    </div>`).join("");
+  list.querySelectorAll("[data-act]").forEach((b) => b.addEventListener("click", async (e) => {
+    const id = e.target.closest(".item").dataset.id;
+    const job = cloudJobs.find((j) => j.id === id);
+    if (b.dataset.act === "skip") {
+      await cloudInvoke("ccp-log", { job_id: id, job_status: "skipped" }).catch(() => {});
+      cloudJobs = cloudJobs.map((j) => (j.id === id ? { ...j, status: "skipped" } : j));
+      renderCloudJobs();
+    } else startApply(job);
+  }));
+}
+
+$("#btnFindJobs").addEventListener("click", async () => {
+  if (!needCloud()) return;
+  const btn = $("#btnFindJobs");
+  btn.disabled = true;
+  $("#findMsg").textContent = "Searching employers' career sites…";
+  try {
+    const r = await cloudInvoke("ccp-research-jobs", { limit: +$("#findLimit").value || 20 });
+    $("#findMsg").textContent = `${r.employers} employers read, ${r.fetched} openings, ${r.matched} match your targets, ${r.added} new.`;
+    await loadCloudJobs();
+  } catch (e) {
+    $("#findMsg").textContent = e.message;
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+$("#btnDiscover").addEventListener("click", async () => {
+  if (!needCloud()) return;
+  const names = parseList($("#discoverNames").value);
+  if (!names.length) return;
+  $("#findMsg").textContent = "Looking for their career-site feeds…";
+  try {
+    const r = await cloudInvoke("ccp-research-jobs", { discover: names, limit: +$("#findLimit").value || 20 });
+    $("#findMsg").textContent = `${r.discovered.length} of ${names.length} employers found (${r.discovered.map((d) => d.name).join(", ") || "none"}); ${r.added} new jobs.`;
+    $("#discoverNames").value = "";
+    await loadCloudJobs();
+  } catch (e) {
+    $("#findMsg").textContent = e.message;
+  }
+});
+
+async function ensureSiteAccess(url) {
+  try {
+    const origin = new URL(url).origin + "/*";
+    if (await chrome.permissions.contains({ origins: [origin] })) return true;
+    return await chrome.permissions.request({ origins: [origin] });
+  } catch {
+    return true;
+  }
+}
+
+function applyCard(html) {
+  $("#applyCard").innerHTML = `<div class="card">${html}</div>`;
+}
+
+async function startApply(job) {
+  if (!needCloud()) return;
+  const resume = resumes.find((r) => r.id === settings.defaultResumeId) || resumes[0];
+  if (!resume) return status("Upload your master resume first (Settings).", "error");
+  const target = job.apply_url || job.url;
+  if (!(await ensureSiteAccess(target))) return status("Site access was not granted; the form cannot be filled.", "error");
+  apply = { job, resume, tabId: null, questions: [], answers: [], manual: {}, app: null };
+  applyCard(`<b>${esc(job.title)}</b> @ ${esc(job.company || "")}<div id="applyProgress" class="progress">Opening the application page…</div>`);
+  const prog = (m) => { const p = $("#applyProgress"); if (p) p.textContent = m; };
+  try {
+    const opened = await send({ type: "APPLY_OPEN", url: target, active: true });
+    apply.tabId = opened.tabId;
+    // 1. job description (feed text, else the page itself)
+    let jd = job.description || "";
+    if (jd.length < 300) {
+      prog("Reading the job description from the page…");
+      const pt = await send({ type: "PAGE_TEXT", tabId: apply.tabId });
+      jd = pt.text || "";
+    }
+    // 2. tailored resume
+    prog("Tailoring your resume for this job…");
+    const result = await tailorResume({ resumeBytes: b64ToBytes(resume.dataB64), jdText: jd, job: { title: job.title, company: job.company, url: job.url }, settings, approvedOverrides: [], onProgress: prog });
+    const fileName = `${safeName(settings.candidateName || "Resume")}_Resume_${safeName(job.company || "")}_${safeName(job.title || "")}.docx`.replace(/\s+/g, "_");
+    apply.tailored = { ...result, fileName, title: job.title, company: job.company, resumeId: resume.id, url: job.url };
+    lastTailor = apply.tailored;
+    renderTailorResult(lastTailor);
+    const url = URL.createObjectURL(new Blob([result.bytes], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }));
+    await chrome.downloads.download({ url, filename: `CCP Extension/${fileName}`, saveAs: false, conflictAction: "uniquify" }).catch(() => {});
+    await addTailorRecord({ title: job.title, company: job.company, url: job.url, resumeId: resume.id, fileName, changes: result.changes.length, gaps: result.plan.gaps, experienceGap: result.plan.experience_gap });
+    // 3. the form
+    prog("Reading the application form…");
+    await fillCurrentPage(prog);
+  } catch (e) {
+    applyCard(`<div class="banner bad">${esc(e.message)}</div><div class="acts"><button class="small" id="btnApplyClose">Close</button></div>`);
+    $("#btnApplyClose").addEventListener("click", () => { apply = null; $("#applyCard").innerHTML = ""; });
+  }
+}
+
+async function fillCurrentPage(prog = () => {}) {
+  const scan = await send({ type: "APPLY_SCAN", tabId: apply.tabId });
+  apply.scan = scan;
+  apply.questions = scan.questions || [];
+  if (!apply.questions.length) {
+    renderApplyCard({ note: "No form fields on this page yet. Click Apply on the page (or sign in there), then press “Scan this page”." });
+    return;
+  }
+  prog(`Answering ${apply.questions.length} questions from your profile…`);
+  const r = await cloudInvoke("ccp-answer", { questions: apply.questions.map((q) => ({ id: q.id, label: q.label, type: q.type, options: q.options, required: q.required })), job: { title: apply.job.title, company: apply.job.company, ats: scan.ats } });
+  apply.answers = r.answers || [];
+  for (const a of apply.answers) if (apply.manual[a.id] != null) { a.answer = apply.manual[a.id]; a.source = "you"; a.needs_candidate = false; }
+  prog("Filling the form…");
+  const fill = await send({ type: "APPLY_FILL", tabId: apply.tabId, answers: apply.answers.filter((a) => a.answer != null && a.answer !== ""), resume: { fileName: apply.tailored.fileName, bytesB64: bytesToB64(apply.tailored.bytes) } });
+  apply.report = fill.report || [];
+  // record as prepared
+  try {
+    const log = await cloudInvoke("ccp-log", { job_id: apply.job.id, job_status: "prepared", application: { id: apply.app?.id, job_id: apply.job.id, job_url: apply.job.url, company: apply.job.company, title: apply.job.title, ats: scan.ats, resume_file_name: apply.tailored.fileName, answers: Object.fromEntries(apply.answers.map((a) => [a.id, { q: apply.questions.find((q) => q.id === a.id)?.label, a: a.answer, src: a.source }])), changes: apply.tailored.changes, status: "prepared" } });
+    apply.app = log.application || apply.app;
+  } catch {}
+  renderApplyCard({});
+}
+
+function renderApplyCard({ note = "" } = {}) {
+  const qById = Object.fromEntries(apply.questions.map((q) => [q.id, q]));
+  const rep = Object.fromEntries((apply.report || []).map((r) => [r.id, r]));
+  const filled = apply.answers.filter((a) => a.answer != null && a.answer !== "" && !a.needs_candidate);
+  const needs = apply.answers.filter((a) => a.needs_candidate || a.answer == null || a.answer === "");
+  const gap = apply.tailored?.plan?.experience_gap;
+  const html = `
+    <b>${esc(apply.job.title)}</b> @ ${esc(apply.job.company || "")} <span class="badge">${esc(apply.scan?.ats || "")}</span>
+    ${gap ? `<div class="banner bad" style="margin-top:6px">${esc(gap)}</div>` : ""}
+    ${note ? `<div class="banner warn">${esc(note)}</div>` : ""}
+    <div class="small muted" style="margin:6px 0">Resume: ${esc(apply.tailored?.fileName || "")} (${apply.tailored?.changes?.length ?? 0} changes — details on the Resume tab)</div>
+    <h4>Filled from your profile (${filled.length})</h4>
+    <ul class="small">${filled.map((a) => `<li>${esc(qById[a.id]?.label || a.id)}: <b>${esc(String(rep[a.id]?.value ?? a.answer))}</b>${rep[a.id] && rep[a.id].ok === false ? ` <span class="badge rejection">not filled: ${esc(rep[a.id].note || "")}</span>` : ""}${a.source === "ai" ? ' <span class="badge">AI</span>' : ""}${rep[a.id]?.note ? ` <span class="muted">${esc(rep[a.id].note)}</span>` : ""}</li>`).join("") || "<li class='muted'>none</li>"}</ul>
+    ${needs.length ? `<h4>Needs you (${needs.length})</h4><div class="small">${needs.map((a) => { const q = qById[a.id] || {}; const opts = q.options?.length ? `<select data-q="${esc(a.id)}"><option value="">choose…</option>${q.options.map((o) => `<option>${esc(o)}</option>`).join("")}</select>` : `<input data-q="${esc(a.id)}" placeholder="${esc(a.note || "your answer")}">`; return `<div class="row"><span style="flex:1">${esc(q.label || a.id)}${q.required ? " *" : ""}</span>${opts}</div>`; }).join("")}<button class="small" id="btnApplyFillMine">Fill my answers</button></div>` : ""}
+    <div class="acts">
+      <button class="primary" id="btnApplySubmit">${apply.scan?.submitText ? `Submit (“${esc(apply.scan.submitText)}”)` : "Submit application"}</button>
+      <button id="btnApplyNext">Next page</button>
+      <button id="btnApplyRescan">Scan this page</button>
+      <button id="btnApplyShow">Show tab</button>
+      <button id="btnApplyManual">I submitted it myself</button>
+      <button id="btnApplyCancel">Cancel</button>
+    </div>
+    <div class="muted small" style="margin-top:6px">Check the page before submitting. Sponsorship and EEO answers come only from your profile.</div>`;
+  applyCard(html);
+  $("#btnApplyFillMine")?.addEventListener("click", async () => {
+    const extra = {};
+    for (const el of $("#applyCard").querySelectorAll("[data-q]")) if (el.value) { apply.manual[el.dataset.q] = el.value; extra[norm(qById[el.dataset.q]?.label)] = el.value; }
+    if (Object.keys(extra).length) {
+      const p = await getProfile();
+      await saveProfile({ extra_answers: { ...(p.extra_answers || {}), ...extra } });
+      syncProfile(await getProfile()).catch(() => {});
+    }
+    status("Filling your answers…");
+    await fillCurrentPage();
+    status("Done. Review the page, then Submit.", "ok");
+  });
+  $("#btnApplySubmit").addEventListener("click", async () => {
+    const r = await send({ type: "APPLY_SUBMIT", tabId: apply.tabId });
+    if (!r.clicked) return status(r.note || "Could not find the submit button — click it on the page, then press “I submitted it myself”.", "error");
+    await markSubmitted(`Clicked “${r.text}”.`);
+  });
+  $("#btnApplyNext").addEventListener("click", async () => {
+    const r = await send({ type: "APPLY_NEXT", tabId: apply.tabId });
+    status(r.clicked ? `Clicked “${r.text}” — scanning the next page…` : "No Next button found.");
+    if (r.clicked) { await new Promise((x) => setTimeout(x, 2000)); await fillCurrentPage(); }
+  });
+  $("#btnApplyRescan").addEventListener("click", () => fillCurrentPage());
+  $("#btnApplyShow").addEventListener("click", () => send({ type: "FOCUS_TAB", tabId: apply.tabId }));
+  $("#btnApplyManual").addEventListener("click", () => markSubmitted("Submitted by you on the page."));
+  $("#btnApplyCancel").addEventListener("click", () => { apply = null; $("#applyCard").innerHTML = ""; });
+}
+
+const norm = (s) => (s || "").toLowerCase().replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
+
+async function markSubmitted(note) {
+  try {
+    await cloudInvoke("ccp-log", { job_id: apply.job.id, job_status: "applied", application: { id: apply.app?.id, job_id: apply.job.id, job_url: apply.job.url, company: apply.job.company, title: apply.job.title, ats: apply.scan?.ats, resume_file_name: apply.tailored?.fileName, status: "submitted", notes: note } });
+  } catch (e) {
+    status(`Logged locally only: ${e.message}`, "error");
+  }
+  await upsertJobs([{ key: jobKeyFor(apply.job), board: apply.scan?.ats || "web", jobId: null, title: apply.job.title, company: apply.job.company, location: apply.job.location, url: apply.job.url, status: "applied", source: "ccp-apply", firstSeen: Date.now(), lastSeen: Date.now(), appliedAt: Date.now() }]);
+  cloudJobs = cloudJobs.map((j) => (j.id === apply.job.id ? { ...j, status: "applied" } : j));
+  status(`Application recorded: ${apply.job.title} @ ${apply.job.company}. ${note}`, "ok");
+  apply = null;
+  $("#applyCard").innerHTML = "";
+  await reload();
+}
+
+const jobKeyFor = (j) => `ccp:${(j.url || j.title + "@" + j.company).toLowerCase()}`;
+
+// ----------------------------------------------------------------------------- market demand (CCP data)
+
+async function showMarket(refresh = false) {
+  if (!needCloud()) return;
+  const body = $("#marketBody");
+  const field = $("#marketField").value;
+  const years = $("#marketYears").value;
+  body.textContent = refresh ? "Researching the market (this takes a minute)…" : "Loading…";
+  try {
+    if (refresh) {
+      const r = await cloudInvoke("ccp-market", { field });
+      body.textContent = JSON.stringify(r.report);
+    }
+    const r = await cloudInvoke("ccp-market", null, { method: "GET", query: `?field=${encodeURIComponent(field)}${years ? "&years=" + encodeURIComponent(years) : ""}` });
+    const rows = r.rows || [];
+    if (!rows.length) { body.innerHTML = `No market data for this field yet. Press Refresh to research it (needs AI access).`; return; }
+    const resume = resumes.find((x) => x.id === $("#resumeSelect").value) || resumes[0];
+    let have = new Set();
+    if (resume) { const doc = await openDocx(b64ToBytes(resume.dataB64)); have = new Set(findSkills(blocksText(doc.blocks)).map((s) => s.name.toLowerCase())); }
+    const bands = {};
+    for (const row of rows) (bands[row.years_band] ||= []).push(row);
+    body.innerHTML = Object.entries(bands).map(([band, list]) => `<h4>${esc(band)} years</h4><div>${list.slice(0, 25).map((row) => `<span class="badge ${[...have].some((h) => row.software.toLowerCase().includes(h) || h.includes(row.software.toLowerCase())) ? "applied" : ""}" title="${row.demand} of ${row.sources} postings">${esc(row.software)} ${row.demand}</span> `).join("")}</div>`).join("") + `<div class="muted" style="margin-top:6px">Green = already on your resume. Updated ${new Date(rows[0].updated_at).toLocaleDateString()}.</div>`;
+  } catch (e) {
+    body.textContent = e.message;
+  }
+}
+$("#btnMarket").addEventListener("click", () => showMarket(false));
+$("#btnMarketRefresh").addEventListener("click", () => showMarket(true));
+$("#marketDemand").addEventListener("toggle", async (e) => {
+  if (!e.target.open) return;
+  const p = await getProfile();
+  if (p.field && [...$("#marketField").options].some((o) => o.value === p.field)) $("#marketField").value = p.field;
+  if (p.years_experience) $("#marketYears").value = p.years_experience;
+  showMarket(false);
+});
+
 // ----------------------------------------------------------------------------- boot
 
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === "local" && (changes.jobs || changes.mail || changes.settings || changes.resumes || changes.scanState)) reload();
+  if (area === "local" && (changes.jobs || changes.mail || changes.settings || changes.resumes || changes.scanState || changes.cloud)) reload();
 });
 await reload();
+loadCloudJobs();

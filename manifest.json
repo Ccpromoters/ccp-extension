@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "CCP Extension - Job Search Assistant",
   "short_name": "CCP Extension",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Opens your job boards, tracks applications from Gmail and history, and tailors your resume to any job description - everything stays in your browser.",
   "minimum_chrome_version": "116",
   "icons": {
@@ -46,7 +46,8 @@
     "https://*.monster.com/*",
     "https://*.glassdoor.com/*",
     "https://mail.google.com/*",
-    "https://api.anthropic.com/*"
+    "https://api.anthropic.com/*",
+    "https://*.insforge.app/*"
   ],
   "optional_host_permissions": [
     "https://*/*",
@@ -74,6 +75,16 @@
     {
       "matches": ["https://www.linkedin.com/jobs-tracker/*", "https://www.linkedin.com/my-items/*", "https://myjobs.indeed.com/*"],
       "js": ["src/content/applied.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://boards.greenhouse.io/*", "https://job-boards.greenhouse.io/*", "https://jobs.lever.co/*", "https://apply.workable.com/*",
+        "https://jobs.ashbyhq.com/*", "https://jobs.smartrecruiters.com/*", "https://*.myworkdayjobs.com/*", "https://*.ultipro.com/*",
+        "https://*.ukg.net/*", "https://recruiting.paylocity.com/*", "https://*.icims.com/*", "https://*.taleo.net/*",
+        "https://*.bamboohr.com/*", "https://jobs.jobvite.com/*", "https://*.successfactors.com/*", "https://*.applytojob.com/*"
+      ],
+      "js": ["src/content/apply.js"],
       "run_at": "document_idle"
     }
   ],

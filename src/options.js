@@ -1,12 +1,13 @@
 if (!globalThis.chrome?.runtime?.id) await import("../dev/chrome-shim.js");
 
-import { DEFAULT_SETTINGS, getSettings, saveSettings, getResumes, saveResumes, bytesToB64, b64ToBytes } from "./lib/storage.js";
+import { DEFAULT_SETTINGS, getSettings, saveSettings, getResumes, saveResumes, bytesToB64, b64ToBytes, getProfile } from "./lib/storage.js";
 import { MODELS, DEFAULT_MODEL, testConnection } from "./lib/ai.js";
 import { openDocx } from "./lib/docx.js";
+import { cloudSignIn, cloudSignUp, cloudSignOut, cloudStatus, syncProfile } from "./lib/cloud.js";
 
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-const FIELDS = ["candidateName", "candidateEmail", "targetTitles", "apiProvider", "apiKey", "apiBaseUrl", "effort", "maxBulletChanges", "maxSkillTerms", "allowSummaryEdit", "blockedTerms", "rules", "customUrls", "openGmail", "openHistory", "openOnStartup", "gmailIndex", "scanDays", "redactContacts"];
+const FIELDS = ["candidateName", "candidateEmail", "targetTitles", "aiMode", "apiProvider", "apiKey", "apiBaseUrl", "effort", "maxBulletChanges", "maxSkillTerms", "allowSummaryEdit", "blockedTerms", "rules", "customUrls", "openGmail", "openHistory", "openOnStartup", "gmailIndex", "scanDays", "redactContacts"];
 const BOARD_KEYS = ["linkedin", "indeed", "ziprecruiter", "dice", "monster", "glassdoor"];
 
 let settings = {};
@@ -192,7 +193,47 @@ $("#btnImport").addEventListener("click", async () => {
   }
 });
 
+// ---- CCP Cloud
+async function renderCloud() {
+  const s = await cloudStatus();
+  $("#cloudStatus").innerHTML = s.signedIn
+    ? `Signed in as <b>${esc(s.email)}</b> · AI access: ${s.accessOk ? "<b>active</b>" : "not unlocked (enter the access code and press Sync)"} · profile synced ${s.lastSync ? new Date(s.lastSync).toLocaleString() : "never"}`
+    : "Not signed in. Sign in with your CCP account, or create one.";
+  if (s.email && !$("#cloudEmail").value) $("#cloudEmail").value = s.email;
+  const own = $("#aiMode").value === "own";
+  $("#ownKeySection").classList.toggle("hidden", !own);
+  $("#ownKeyHeading").classList.toggle("hidden", !own);
+}
+$("#aiMode").addEventListener("change", renderCloud);
+$("#btnWizard").addEventListener("click", () => chrome.tabs.create({ url: chrome.runtime.getURL("src/onboarding.html") }));
+async function cloudAction(kind) {
+  const m = $("#cloudMsg");
+  try {
+    m.textContent = "Working…";
+    const email = $("#cloudEmail").value.trim();
+    const password = $("#cloudPassword").value;
+    if (kind === "in") await cloudSignIn(email, password);
+    if (kind === "up") await cloudSignUp(email, password, settings.candidateName || "");
+    if (kind === "out") await cloudSignOut();
+    if (kind !== "out") {
+      await saveSettings({ aiMode: "cloud", candidateEmail: email });
+      $("#aiMode").value = "cloud";
+      const r = await syncProfile(await getProfile(), $("#cloudCode").value.trim());
+      m.textContent = r.accessMessage || "Signed in and profile synced.";
+    } else m.textContent = "Signed out.";
+    settings = await getSettings();
+    await renderCloud();
+  } catch (e) {
+    m.textContent = e.message;
+  }
+}
+$("#btnCloudIn").addEventListener("click", () => cloudAction("in"));
+$("#btnCloudUp").addEventListener("click", () => cloudAction("up"));
+$("#btnCloudOut").addEventListener("click", () => cloudAction("out"));
+$("#btnCloudSync").addEventListener("click", () => cloudAction("sync"));
+
 fillModels();
 settings = await getSettings();
 resumes = await getResumes();
 load();
+await renderCloud();

@@ -5,6 +5,7 @@ export const DEFAULT_SETTINGS = {
   candidateName: "",
   candidateEmail: "",
   targetTitles: "",
+  aiMode: "cloud", // cloud (CCP account, no key) | own (provider + key below)
   apiProvider: "anthropic", // anthropic | openai | mock
   apiKey: "",
   apiBaseUrl: "",
@@ -48,6 +49,26 @@ export async function saveSettings(patch) {
   const cur = await get("settings", {});
   const next = { ...cur, ...patch };
   await set({ settings: next });
+  return next;
+}
+
+// ---- candidate memory (the onboarding answers; mirrored to CCP Cloud when signed in)
+
+export const EMPTY_PROFILE = {
+  full_name: "", first_name: "", last_name: "", phone: "", address_line: "", city: "", state: "", zip: "", country: "United States",
+  linkedin_url: "", website_url: "", field: "", years_experience: "", target_titles: [], target_locations: [],
+  work_authorization: "", needs_sponsorship_now: null, needs_sponsorship_future: "", veteran_status: "decline", gender: "decline",
+  race_ethnicity: "decline", disability_status: "decline", desired_salary: "", available_from: "", willing_to_relocate: null,
+  has_drivers_license: null, over_18: true, education: [], employment: [], extra_answers: {}, rules: "", blocked_terms: "",
+};
+
+export async function getProfile() {
+  return { ...EMPTY_PROFILE, ...(await get("profile", {})) };
+}
+
+export async function saveProfile(patch) {
+  const next = { ...(await getProfile()), ...patch };
+  await set({ profile: next });
   return next;
 }
 

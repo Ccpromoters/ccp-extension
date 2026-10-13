@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CCP Extension – Setup</title>
+  <link rel="stylesheet" href="sidepanel.css">
+  <style>
+    body { max-width: 780px; margin: 0 auto; padding: 0 16px 48px; display: block; }
+    h1 { font-size: 22px; margin: 22px 0 4px; }
+    .steps { display: flex; gap: 6px; margin: 14px 0 18px; flex-wrap: wrap; }
+    .steps span { padding: 4px 10px; border-radius: 999px; background: var(--bg2); border: 1px solid var(--line); font-size: 12px; color: var(--muted); }
+    .steps span.active { background: var(--brand); color: #fff; border-color: var(--brand); }
+    .steps span.done { color: var(--ok); }
+    .step { display: none; }
+    .step.active { display: block; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; }
+    .grid .wide { grid-column: 1 / -1; }
+    label { font-weight: 600; display: block; margin-bottom: 3px; }
+    input, select, textarea { width: 100%; font: inherit; padding: 8px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg); color: var(--fg); }
+    textarea { min-height: 80px; resize: vertical; }
+    .help { color: var(--muted); font-size: 12px; margin-top: 3px; }
+    .note { background: var(--info-bg); padding: 8px 10px; border-radius: var(--radius); font-size: 12px; margin: 8px 0; }
+    .nav { display: flex; gap: 10px; margin-top: 20px; align-items: center; }
+    .msg { font-size: 12px; }
+    .msg.error { color: var(--bad); } .msg.ok { color: var(--ok); }
+    .rowset { border: 1px solid var(--line); border-radius: var(--radius); padding: 10px; margin: 6px 0; }
+    h2 { font-size: 16px; margin: 18px 0 8px; }
+  </style>
+</head>
+<body>
+  <h1>CCP Extension – set up your profile</h1>
+  <div class="muted small">Four short steps. Everything is saved in this Chrome profile and in your CCP Cloud account so the extension can tailor resumes and fill applications for you.</div>
+  <div class="steps"><span data-step="0" class="active">1 Account</span><span data-step="1">2 Resume</span><span data-step="2">3 About you</span><span data-step="3">4 Finish</span></div>
+
+  <section class="step active" data-step="0">
+    <div class="note">Your CCP account does the AI work – no API key needed. Ask the CCP team for your <b>access code</b> if you do not have one yet.</div>
+    <div class="grid">
+      <div><label for="acEmail">Email</label><input id="acEmail" type="email" placeholder="you@example.com"></div>
+      <div><label for="acPassword">Password</label><input id="acPassword" type="password" autocomplete="new-password" placeholder="at least 8 characters"></div>
+      <div><label for="acName">Your name</label><input id="acName" placeholder="Full name"></div>
+      <div><label for="acCode">CCP access code (optional now)</label><input id="acCode" placeholder="from the CCP team"></div>
+    </div>
+    <div class="nav"><button id="btnSignIn" class="primary">Sign in</button><button id="btnSignUp">Create account</button><span id="acMsg" class="msg"></span></div>
+    <div id="acStatus" class="help"></div>
+  </section>
+
+  <section class="step" data-step="1">
+    <div class="note">Upload your <b>original, final resume</b> as a Word file (.docx). The extension never changes this file; it makes a tailored copy per job. You can also paste the text so the AI knows your background even without the file.</div>
+    <div class="grid">
+      <div class="wide"><label>Resume file (.docx)</label><div class="row"><input type="file" id="resumeFile" accept=".docx" style="width:auto"><input id="resumeLabel" placeholder="Label, e.g. Master"><button id="btnAddResume" class="small">Add</button></div><div id="resumeMsg" class="help"></div><div id="resumeList" class="help"></div></div>
+      <div class="wide"><label for="resumeText">Or paste your resume text</label><textarea id="resumeText" rows="8" placeholder="Paste the full text of your resume here…"></textarea></div>
+    </div>
+    <div class="nav"><button class="back">Back</button><button class="next primary">Next</button></div>
+  </section>
+
+  <section class="step" data-step="2">
+    <div class="note">These answers are used only to fill application forms. Anything you leave blank is asked again when a form needs it. EEO questions default to "prefer not to answer".</div>
+    <h2>Contact</h2>
+    <div class="grid">
+      <div><label>First name</label><input id="first_name"></div>
+      <div><label>Last name</label><input id="last_name"></div>
+      <div><label>Phone</label><input id="phone" placeholder="+1 248 555 0100"></div>
+      <div><label>LinkedIn URL</label><input id="linkedin_url" placeholder="https://www.linkedin.com/in/…"></div>
+      <div class="wide"><label>Street address</label><input id="address_line"></div>
+      <div><label>City</label><input id="city"></div>
+      <div><label>State</label><input id="state" placeholder="MI"></div>
+      <div><label>ZIP</label><input id="zip"></div>
+      <div><label>Country</label><input id="country" value="United States"></div>
+    </div>
+    <h2>Job search</h2>
+    <div class="grid">
+      <div><label>Field</label><select id="field">
+        <option value="">Choose…</option><option value="civil">Civil / construction engineering</option><option value="it-infra">IT infrastructure / systems / network</option>
+        <option value="security">Cybersecurity / SOC</option><option value="cloud">Cloud</option><option value="devops">DevOps</option><option value="dev">Software development</option>
+        <option value="data">Data / BI</option><option value="it-support">IT support / help desk</option><option value="pm">Project / release management</option><option value="other">Other</option></select></div>
+      <div><label>Years of experience</label><input id="years_experience" type="number" min="0" max="40" step="0.5"></div>
+      <div class="wide"><label>Target job titles (one per line)</label><textarea id="target_titles" rows="3" placeholder="Project Engineer&#10;Civil Engineer&#10;Field Engineer"></textarea></div>
+      <div class="wide"><label>Target locations (one per line; states like TX, MI, or "Remote")</label><textarea id="target_locations" rows="2" placeholder="Texas&#10;Michigan&#10;Remote"></textarea></div>
+      <div><label>Desired salary</label><input id="desired_salary" placeholder="$70,000"></div>
+      <div><label>Available to start</label><input id="available_from" placeholder="2 weeks notice"></div>
+      <div><label>Willing to relocate?</label><select id="willing_to_relocate"><option value="">–</option><option value="true">Yes</option><option value="false">No</option></select></div>
+      <div><label>Driver's license?</label><select id="has_drivers_license"><option value="">–</option><option value="true">Yes</option><option value="false">No</option></select></div>
+    </div>
+    <h2>Work authorization (answered honestly on every form)</h2>
+    <div class="grid">
+      <div><label>Status</label><select id="work_authorization">
+        <option value="">Choose…</option><option value="us_citizen">US citizen</option><option value="green_card">Permanent resident (green card)</option><option value="ead">EAD / work permit</option>
+        <option value="f1_opt">F-1 OPT / STEM OPT</option><option value="h1b">H-1B</option><option value="tn">TN</option><option value="other">Other</option></select></div>
+      <div><label>Need sponsorship now?</label><select id="needs_sponsorship_now"><option value="">–</option><option value="false">No</option><option value="true">Yes</option></select></div>
+      <div class="wide"><label>Will you need sponsorship in the future?</label><select id="needs_sponsorship_future"><option value="">Choose…</option><option value="no">No</option><option value="yes">Yes</option><option value="unsure">Not sure – ask me on each form</option></select><div class="help">Forms often ask "now or in the future". If you are on OPT/H-1B this is usually Yes; the extension never answers this for you unless you set it here.</div></div>
+    </div>
+    <h2>Voluntary self-identification (EEO)</h2>
+    <div class="grid">
+      <div><label>Gender</label><select id="gender"><option value="decline">Prefer not to answer</option><option value="Male">Male</option><option value="Female">Female</option><option value="Non-binary">Non-binary</option></select></div>
+      <div><label>Veteran status</label><select id="veteran_status"><option value="decline">Prefer not to answer</option><option value="I am not a protected veteran">Not a veteran</option><option value="I identify as a veteran">Veteran</option></select></div>
+      <div><label>Race / ethnicity</label><select id="race_ethnicity"><option value="decline">Prefer not to answer</option><option value="Asian">Asian</option><option value="Black or African American">Black or African American</option><option value="Hispanic or Latino">Hispanic or Latino</option><option value="White">White</option><option value="Native American or Alaska Native">Native American or Alaska Native</option><option value="Native Hawaiian or Other Pacific Islander">Native Hawaiian or Pacific Islander</option><option value="Two or More Races">Two or more races</option></select></div>
+      <div><label>Disability</label><select id="disability_status"><option value="decline">Prefer not to answer</option><option value="No, I do not have a disability">No</option><option value="Yes, I have a disability">Yes</option></select></div>
+    </div>
+    <h2>Education and employment (most recent first)</h2>
+    <div class="rowset grid"><div><label>School</label><input id="edu1_school"></div><div><label>Degree</label><input id="edu1_degree" placeholder="M.S. Engineering Management"></div><div><label>Year (or expected)</label><input id="edu1_year"></div><div><label>Field of study</label><input id="edu1_major"></div></div>
+    <div class="rowset grid"><div><label>School</label><input id="edu2_school"></div><div><label>Degree</label><input id="edu2_degree"></div><div><label>Year</label><input id="edu2_year"></div><div><label>Field of study</label><input id="edu2_major"></div></div>
+    <div class="rowset grid"><div><label>Company</label><input id="emp1_company"></div><div><label>Title</label><input id="emp1_title"></div><div><label>From</label><input id="emp1_from" placeholder="Dec 2025"></div><div><label>To</label><input id="emp1_to" placeholder="Present"></div></div>
+    <div class="rowset grid"><div><label>Company</label><input id="emp2_company"></div><div><label>Title</label><input id="emp2_title"></div><div><label>From</label><input id="emp2_from"></div><div><label>To</label><input id="emp2_to"></div></div>
+    <h2>Rules for the AI (optional)</h2>
+    <div class="grid">
+      <div class="wide"><label>Things the AI must never add to your resume</label><input id="blocked_terms" placeholder="e.g. PE license, Revit, AWS"></div>
+      <div class="wide"><label>Other rules</label><textarea id="rules" rows="2" placeholder="e.g. Keep cloud at concept level only."></textarea></div>
+    </div>
+    <div class="nav"><button class="back">Back</button><button class="next primary">Save and continue</button><span id="profileMsg" class="msg"></span></div>
+  </section>
+
+  <section class="step" data-step="3">
+    <div class="note" id="finishNote">Saving your profile…</div>
+    <div class="nav"><button id="btnScanGmail">Scan Gmail for past applications</button><button id="btnOpenBoards">Open my job boards</button><button id="btnDone" class="primary">Done</button><span id="finishMsg" class="msg"></span></div>
+    <div class="help">You can change any of this later in Settings. Open the side panel with the CCP icon (or Alt+Shift+C) to find jobs, tailor your resume and apply.</div>
+  </section>
+  <script type="module" src="onboarding.js"></script>
+</body>
+</html>

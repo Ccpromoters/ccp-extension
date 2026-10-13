@@ -3,6 +3,7 @@
 import { openDocx, applyPlan, saveDocx, blocksForModel, blocksText, wordsAdded, PlanError } from "./docx.js";
 import { generateJson, PLAN_SCHEMA, systemPrompt, userPrompt } from "./ai.js";
 import { keywordGap, yearsRequired } from "./skills-dict.js";
+import { invoke as cloudInvoke } from "./cloud.js";
 
 export function parseList(text) {
   return (text || "")
@@ -80,13 +81,20 @@ export async function tailorResume({ resumeBytes, jdText, job, settings, approve
 
   let plan;
   let usage = null;
-  if (settings.apiProvider === "mock") {
+  const blocksListing = blocksForModel(doc.blocks, { redact: settings.redactContacts !== false });
+  if (settings.apiProvider === "mock" && settings.aiMode !== "cloud") {
     plan = mockPlan(doc.blocks, gap, years);
+  } else if (settings.aiMode !== "own") {
+    // CCP Cloud: the candidate's account does the thinking, no key in the extension.
+    progress("Asking CCP Cloud for the smallest truthful edits…");
+    const r = await cloudInvoke("ccp-tailor", { blocks: blocksListing, jd, job, limits, rules: settings.rules, effort: settings.effort });
+    plan = r.plan;
+    usage = r.usage;
   } else {
     progress("Asking the model for the smallest truthful edits…");
     const r = await generateJson(settings, {
       system: systemPrompt(limits),
-      user: userPrompt({ rules: settings.rules, blocks: blocksForModel(doc.blocks, { redact: settings.redactContacts !== false }), jd, job, limits }),
+      user: userPrompt({ rules: settings.rules, blocks: blocksListing, jd, job, limits }),
       schema: PLAN_SCHEMA,
       effort: settings.effort,
     });

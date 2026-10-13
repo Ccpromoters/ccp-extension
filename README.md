@@ -40,15 +40,22 @@ Coming soon – the listing is under review. Until then, use the manual install 
 
 Step-by-step with pictures: [docs/install.md](docs/install.md).
 
-## Set up (2 minutes)
+## Set up (5 minutes, no API key)
 
-The settings page opens automatically after installation (or right-click the icon → *Settings*).
+The setup wizard opens automatically after installation (Settings → *Open the setup wizard* brings it back).
 
-1. **Candidate** – name and target job titles.
-2. **Master resume** – upload the final `.docx`. The extension checks that it can find the skills rows and bullet points and tells you how many it sees.
-3. **AI** – paste an [Anthropic API key](https://console.anthropic.com/) (default model: Claude Opus 5.5). Any OpenAI-compatible endpoint works too, including a local Ollama server. Click *Test connection*.
-4. **Tailoring rules** – optional but recommended: list *blocked terms* (tools the candidate has not confirmed, e.g. `Veeam, Intune, SolarWinds`) and any rules for the AI (e.g. "cloud at concept level only"). Blocked terms are never written into a resume unless you type them into *confirmed terms* for that specific job.
-5. **Boards & tabs** – choose what *Open job boards* opens, and whether to open everything when Chrome starts.
+1. **Account** – sign in or create your CCP Cloud account (email + password) and enter the access code from the CCP team. The AI work runs on CCP's backend; you never handle a key. (Settings → *AI mode* → "My own API key" if you prefer to bring your own.)
+2. **Resume** – upload your final `.docx` (and optionally paste the text). The extension never changes this file; it makes a tailored copy per job.
+3. **About you** – contact details, target titles and locations, work authorization and sponsorship (answered honestly on every form), voluntary EEO answers (default: prefer not to answer), salary, availability, education, employment, and rules for the AI (e.g. *blocked terms* the AI must never add).
+4. **Finish** – scan Gmail for past applications and open your job boards.
+
+Teams that manage several candidates: each candidate gets their own Chrome profile and CCP account. Settings → *Backup* exports and imports a profile (settings + resumes) in one JSON file.
+
+## Find jobs and apply (Jobs tab)
+
+- **Find jobs for me** reads employers' own career-site feeds (Greenhouse, Lever, Ashby, Workable, SmartRecruiters, Workday) for your target titles and locations and lists the matches with a score. **Add employers by name** discovers a company's feed and adds it for everyone.
+- **Prepare & apply** on a lead: the extension tailors your resume for that job (and saves it to `Downloads/CCP Extension/`), opens the application page, reads the form, answers every question it can from your profile (unknown ones go to the AI with your profile as the only source of truth, or come back to you), fills the fields, uploads the resume and shows a review card. **You press Submit** – the extension clicks the form's submit button only then. Multi-page forms: *Next page* / *Scan this page*.
+- Every application is logged with the job link, the resume file and the answers (cloud + Jobs tab). Sponsorship and EEO answers never come from the AI – only from your profile.
 
 Teams that manage several candidates: each candidate gets their own Chrome profile with the extension installed. Settings → *Backup* exports and imports a profile (settings + resumes) in one JSON file.
 
@@ -122,9 +129,11 @@ docs/                   install guide, Chrome Web Store listing material
 
 **Does it apply to jobs for me?** No. It never clicks, submits or sends anything on any site. It records what you did and prepares the resume.
 
-**Do I need the AI key?** Only for resume tailoring. Opening boards, tracking applications, the inbox and the keyword-gap check work without it.
+**Do I need an AI key?** No. With a CCP Cloud account and access code, tailoring, form answers, job research and market research run on CCP's backend ([backend/README.md](backend/README.md)). Opening boards, tracking applications, the inbox and the keyword-gap check work without any account. Settings → *AI mode* lets you use your own key instead.
 
-**Which model does it use?** Claude Opus 5.5 by default (best results on resume wording). Sonnet 5.5 and Haiku 5.5 are selectable for lower cost; a tailoring run is typically a few cents. Requests are sent directly from your browser to the provider with your key; the extension enables the provider's server-side fallback so a declined request is retried on an alternative model automatically.
+**Which model does it use?** Claude Opus 5.5 by default (best results on resume wording); the CCP admin can switch the backend to Sonnet 5.5 for lower cost. A tailoring run is typically a few cents; the backend enables Anthropic's server-side fallback so a declined request is retried on an alternative model automatically.
+
+**Does it submit applications by itself?** No. It fills the form and uploads the tailored resume, then waits for you to press Submit in the side panel. Automated submissions on LinkedIn and Indeed are against their terms and get accounts restricted, so the design keeps a person on every submit.
 
 **Where do tailored resumes go?** `Downloads/CCP Extension/`, named `<Candidate>_Resume_<Company>_<Title>.docx`. Open it in Word once before sending – the extension cannot count pages.
 

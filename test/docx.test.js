@@ -85,6 +85,21 @@ test("applyPlan edits only the planned blocks and verifies the rest", async () =
   assert.equal(z2.get("[Content_Types].xml").crc, z1.get("[Content_Types].xml").crc);
 });
 
+test("skill terms are appended to the items run, keeping a bold 'Label:' run intact", async () => {
+  const doc = await openDocx(await buildDocx());
+  const tools = doc.blocks.find((b) => b.label === "Tools");
+  const r = applyPlan(doc, { skills: [{ block_id: tools.id, add: ["Confluence", "Smartsheet"] }] }, {});
+  assert.equal(r.changes[0].after, "Tools: ServiceNow, SVN, Microsoft Project, Visio, Confluence, Smartsheet.");
+  const doc2 = await openDocx(await saveDocx(doc.zip, r.xml));
+  const again = doc2.blocks.find((b) => norm(b.text).startsWith("Tools:"));
+  assert.equal(again.kind, "skill", "row is still recognised as a labelled skills row after the edit");
+  assert.equal(again.label, "Tools");
+  // the label run is still bold and separate from the items run
+  const pXml = r.xml.slice(again.pStart, again.pEnd);
+  assert.match(pXml, /<w:b\/><w:bCs\/><w:sz w:val="20"\/><\/w:rPr><w:t xml:space="preserve">Tools: <\/w:t>/);
+  assert.match(pXml, /Visio, Confluence, Smartsheet\.<\/w:t>/);
+});
+
 test("applyPlan refuses edits to read-only blocks and reports phrase misses", async () => {
   const doc = await openDocx(await buildDocx());
   const locked = doc.blocks.find((b) => /May 2016/.test(b.text)).id;

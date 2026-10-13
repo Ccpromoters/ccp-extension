@@ -292,16 +292,20 @@ function setParagraphText(xml, para, text) {
   return xml.slice(0, para.start) + out + xml.slice(para.end);
 }
 
-/** Append text to the last text run of a paragraph (keeps that run's formatting). */
-function appendParagraphText(xml, para, suffix) {
-  const textRuns = para.runs.filter((r) => r.hasText);
+/**
+ * Rewrite the text of a paragraph's last non-empty text run through `fn(text) -> text`, keeping that
+ * run's formatting (so a bold "Label:" run stays bold and the items run stays plain).
+ */
+function editLastRunText(xml, para, fn) {
+  const textRuns = para.runs.filter((r) => r.hasText && r.text.trim());
   if (!textRuns.length) throw new PlanError("Paragraph has no text run to extend");
   const last = textRuns[textRuns.length - 1];
   const runXml = xml.slice(last.start, last.end);
-  const tokens = [...runXml.matchAll(T_RX)];
+  const tokens = [...runXml.matchAll(T_RX)].filter((t) => !t[0].endsWith("/>"));
+  if (!tokens.length) throw new PlanError("Paragraph has no text to extend");
   const tok = tokens[tokens.length - 1];
-  const inner = tok[0].endsWith("/>") ? "" : tok[0].replace(/^<w:t[^>]*>/, "").replace(/<\/w:t>$/, "");
-  const newTok = `<w:t xml:space="preserve">${inner}${escapeXml(suffix)}</w:t>`;
+  const inner = unescapeXml(tok[0].replace(/^<w:t[^>]*>/, "").replace(/<\/w:t>$/, ""));
+  const newTok = `<w:t xml:space="preserve">${escapeXml(fn(inner))}</w:t>`;
   const newRun = runXml.slice(0, tok.index) + newTok + runXml.slice(tok.index + tok[0].length);
   return xml.slice(0, last.start) + newRun + xml.slice(last.end);
 }
@@ -487,12 +491,17 @@ export function applyPlan(doc, plan, opts = {}) {
     const before = norm(b.text);
     const idx = expIndex(b);
     if (op.type === "skill") {
-      const trimmed = para.text.replace(/\s+$/, "");
-      const sep = trimmed.includes(" | ") ? " | " : ", ";
-      const endsDot = trimmed.endsWith(".");
-      const base = endsDot ? trimmed.slice(0, -1) : trimmed;
-      const after = `${base}${sep}${op.terms.join(sep)}${endsDot ? "." : ""}`;
-      xml = setParagraphText(xml, para, after);
+      // Append to the last run only, so the row keeps its label formatting.
+      const sep = para.text.includes(" | ") ? " | " : ", ";
+      let after = "";
+      xml = editLastRunText(xml, para, (inner) => {
+        const trimmed = inner.replace(/\s+$/, "");
+        const endsDot = trimmed.endsWith(".");
+        const base = endsDot ? trimmed.slice(0, -1) : trimmed;
+        const out = `${base}${sep}${op.terms.join(sep)}${endsDot ? "." : ""}`;
+        after = para.text.slice(0, para.text.lastIndexOf(inner)) + out;
+        return out;
+      });
       expected[idx] = `skill|${b.label}|${norm(after)}`;
       changes.push({ type: "skill", label: op.label, added: op.terms, before, after: norm(after) });
     } else if (op.type === "bullet-modify") {

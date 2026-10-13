@@ -42,6 +42,10 @@
       <div><label for="acCode">CCP access code (optional now)</label><input id="acCode" placeholder="from the CCP team"></div>
     </div>
     <div class="nav"><button id="btnSignIn" class="primary">Sign in</button><button id="btnSignUp">Create account</button><span id="acMsg" class="msg"></span></div>
+    <div id="verifyBox" class="rowset hidden">
+      <label for="acOtp">We emailed you a 6-digit code — enter it here</label>
+      <div class="row"><input id="acOtp" inputmode="numeric" maxlength="6" placeholder="123456" style="max-width:160px"><button id="btnVerify" class="small primary">Verify</button><button id="btnResend" class="small">Resend code</button><span id="verifyMsg" class="msg"></span></div>
+    </div>
     <div id="acStatus" class="help"></div>
   </section>
 

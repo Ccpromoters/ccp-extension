@@ -1,7 +1,7 @@
 if (!globalThis.chrome?.runtime?.id) await import("../dev/chrome-shim.js");
 
 import { getSettings, saveSettings, getProfile, saveProfile, getResumes, saveResumes, bytesToB64 } from "./lib/storage.js";
-import { cloudSignIn, cloudSignUp, cloudStatus, syncProfile } from "./lib/cloud.js";
+import { cloudSignIn, cloudSignUp, cloudStatus, syncProfile, cloudVerifyEmail, cloudResendCode } from "./lib/cloud.js";
 import { openDocx } from "./lib/docx.js";
 
 const $ = (s) => document.querySelector(s);
@@ -42,7 +42,21 @@ async function account(kind) {
   try {
     msg("#acMsg", kind === "up" ? "Creating your account…" : "Signing in…");
     const r = kind === "up" ? await cloudSignUp(email, password, name) : await cloudSignIn(email, password);
-    if (r.requireEmailVerification && !r.accessToken) return msg("#acMsg", "Check your email and click the verification link, then sign in here.", "ok");
+    if (r.requireEmailVerification && !r.accessToken) {
+      $("#verifyBox").classList.remove("hidden");
+      $("#acOtp").focus();
+      return msg("#acMsg", "Account created. Enter the 6-digit code from your email below.", "ok");
+    }
+    await afterSignIn(email, name);
+  } catch (e) {
+    const t = e.message || "";
+    if (/verif/i.test(t)) { $("#verifyBox").classList.remove("hidden"); }
+    msg("#acMsg", t, "error");
+  }
+}
+
+async function afterSignIn(email, name) {
+  try {
     if (name) await saveProfile({ full_name: name, first_name: name.split(" ")[0], last_name: name.split(" ").slice(1).join(" ") });
     await saveSettings({ candidateName: name || settings.candidateName, candidateEmail: email, aiMode: "cloud" });
     const code = $("#acCode").value.trim();
@@ -58,6 +72,29 @@ async function account(kind) {
 }
 $("#btnSignIn").addEventListener("click", () => account("in"));
 $("#btnSignUp").addEventListener("click", () => account("up"));
+$("#btnVerify").addEventListener("click", async () => {
+  const email = $("#acEmail").value.trim();
+  const otp = $("#acOtp").value.trim();
+  if (otp.length < 6) return msg("#verifyMsg", "Enter the 6-digit code.", "error");
+  try {
+    msg("#verifyMsg", "Verifying…");
+    const r = await cloudVerifyEmail(email, otp);
+    if (!r.accessToken) await cloudSignIn(email, $("#acPassword").value);
+    msg("#verifyMsg", "Email verified.", "ok");
+    $("#verifyBox").classList.add("hidden");
+    await afterSignIn(email, $("#acName").value.trim());
+  } catch (e) {
+    msg("#verifyMsg", e.message, "error");
+  }
+});
+$("#btnResend").addEventListener("click", async () => {
+  try {
+    await cloudResendCode($("#acEmail").value.trim());
+    msg("#verifyMsg", "A new code was sent.", "ok");
+  } catch (e) {
+    msg("#verifyMsg", e.message, "error");
+  }
+});
 
 // ---- step 1: resume
 function renderResumes() {

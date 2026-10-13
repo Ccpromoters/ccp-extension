@@ -3,7 +3,7 @@ if (!globalThis.chrome?.runtime?.id) await import("../dev/chrome-shim.js");
 import { DEFAULT_SETTINGS, getSettings, saveSettings, getResumes, saveResumes, bytesToB64, b64ToBytes, getProfile } from "./lib/storage.js";
 import { MODELS, DEFAULT_MODEL, testConnection } from "./lib/ai.js";
 import { openDocx } from "./lib/docx.js";
-import { cloudSignIn, cloudSignUp, cloudSignOut, cloudStatus, syncProfile } from "./lib/cloud.js";
+import { cloudSignIn, cloudSignUp, cloudSignOut, cloudStatus, syncProfile, cloudVerifyEmail, cloudResendCode } from "./lib/cloud.js";
 
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -213,7 +213,20 @@ async function cloudAction(kind) {
     const email = $("#cloudEmail").value.trim();
     const password = $("#cloudPassword").value;
     if (kind === "in") await cloudSignIn(email, password);
-    if (kind === "up") await cloudSignUp(email, password, settings.candidateName || "");
+    if (kind === "up") {
+      const r = await cloudSignUp(email, password, settings.candidateName || "");
+      if (r.requireEmailVerification && !r.accessToken) {
+        $("#cloudVerifyRow").classList.remove("hidden");
+        m.textContent = "Account created. Enter the 6-digit code from your email and press Verify.";
+        return;
+      }
+    }
+    if (kind === "verify") {
+      const r = await cloudVerifyEmail(email, $("#cloudOtp").value.trim());
+      if (!r.accessToken) await cloudSignIn(email, password);
+      $("#cloudVerifyRow").classList.add("hidden");
+    }
+    if (kind === "resend") { await cloudResendCode(email); m.textContent = "A new code was sent."; return; }
     if (kind === "out") await cloudSignOut();
     if (kind !== "out") {
       await saveSettings({ aiMode: "cloud", candidateEmail: email });
@@ -231,6 +244,8 @@ $("#btnCloudIn").addEventListener("click", () => cloudAction("in"));
 $("#btnCloudUp").addEventListener("click", () => cloudAction("up"));
 $("#btnCloudOut").addEventListener("click", () => cloudAction("out"));
 $("#btnCloudSync").addEventListener("click", () => cloudAction("sync"));
+$("#btnCloudVerify").addEventListener("click", () => cloudAction("verify"));
+$("#btnCloudResend").addEventListener("click", () => cloudAction("resend"));
 
 fillModels();
 settings = await getSettings();

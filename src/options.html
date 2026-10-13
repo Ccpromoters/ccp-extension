@@ -36,6 +36,7 @@
     <div><label for="cloudCode">CCP access code</label><input id="cloudCode" placeholder="unlocks AI features"></div>
     <div><label for="aiMode">AI mode</label><select id="aiMode"><option value="cloud">CCP Cloud (recommended)</option><option value="own">My own API key (below)</option></select></div>
     <div class="wide row"><button id="btnCloudIn" class="small primary">Sign in</button><button id="btnCloudUp" class="small">Create account</button><button id="btnCloudSync" class="small">Sync profile / unlock</button><button id="btnCloudOut" class="small">Sign out</button><span id="cloudMsg" class="help"></span></div>
+    <div class="wide row hidden" id="cloudVerifyRow"><input id="cloudOtp" inputmode="numeric" maxlength="6" placeholder="6-digit code from your email" style="max-width:220px"><button id="btnCloudVerify" class="small primary">Verify email</button><button id="btnCloudResend" class="small">Resend code</button></div>
   </div>
 
   <h2>Candidate</h2>

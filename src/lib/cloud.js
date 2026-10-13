@@ -71,6 +71,17 @@ export async function cloudSignIn(email, password) {
   return data;
 }
 
+/** Email verification with the 6-digit code InsForge mails after sign-up. Returns a session when the server issues one. */
+export async function cloudVerifyEmail(email, otp) {
+  const data = await authCall("/api/auth/email/verify?client_type=desktop", { email, otp: String(otp).trim() });
+  if (data.accessToken) await storeSession(data);
+  return data;
+}
+
+export async function cloudResendCode(email) {
+  return authCall("/api/auth/email/send-verification", { email });
+}
+
 export async function cloudSignOut() {
   const s = await state();
   try {

@@ -132,6 +132,8 @@ function tableRows(xml, start, end) {
 
 const CONTACT_RX = /[\w.+-]+@[\w-]+\.[\w.]+|\(?\d{3}\)?[\s.-]\d{3}[\s.-]\d{4}|linkedin\.com\/in\//i;
 const YEAR_RX = /\b(?:19|20)\d{2}\b/;
+// Paragraphs that imitate bullets with a typed glyph instead of Word list formatting.
+const GLYPH_RX = /^([▪•◦●■□➢➤►\-–—*]|•|o)\s*(?=\S)/;
 const NOT_SKILL_LABELS = new Set(["environment", "certified", "in progress", "training", "certifications", "tools used", "technologies used", "note"]);
 
 function sectionKind(headingText) {
@@ -179,12 +181,14 @@ export function parseBlocks(xml) {
     const text = para.text;
     const t = norm(text);
     const b = { id: blocks.length, kind: "para", label: "", text, locked: false, section, pStart: para.start, pEnd: para.end };
+    const glyph = !para.isBullet && t.length > 12 && GLYPH_RX.test(t) && !/\n/.test(text.trim()) ? t.match(GLYPH_RX)[0] : "";
     if (!t) {
       b.kind = "empty";
       b.locked = true;
-    } else if (para.isBullet) {
+    } else if (para.isBullet || (glyph && sKind !== "skills")) {
       b.kind = "bullet";
       b.locked = sKind === "locked";
+      if (glyph) b.glyph = glyph;
     } else if (isHeading(para)) {
       b.kind = "heading";
       b.locked = true;
@@ -195,6 +199,10 @@ export function parseBlocks(xml) {
       if (label && sKind !== "locked") {
         b.kind = "skill";
         b.label = label;
+      } else if (sKind === "skills" && t.length > 20) {
+        // A plain list of tools under a skills heading ("TECHNICAL TOOLS: AutoCAD, Revit, ...").
+        b.kind = "skill";
+        b.label = section.replace(/\s+/g, " ").replace(/\w\S*/g, (w) => w[0] + w.slice(1).toLowerCase());
       } else if (sKind === "summary" && t.length > 60) {
         b.kind = "summary";
       } else {
@@ -498,9 +506,11 @@ export function applyPlan(doc, plan, opts = {}) {
       expected[idx] = `bullet||${op.text}`;
       changes.push({ type: "bullet-modify", before, after: op.text });
     } else if (op.type === "bullet-add") {
-      xml = insertParagraphAfter(xml, para, op.text);
-      expected.splice(idx + 1, 0, `bullet||${op.text}`);
-      changes.push({ type: "bullet-add", anchor: before, text: op.text });
+      // Typed-glyph bullets: the new paragraph needs the same glyph the neighbours carry.
+      const text = b.glyph && !GLYPH_RX.test(op.text) ? `${b.glyph}${op.text}` : op.text;
+      xml = insertParagraphAfter(xml, para, text);
+      expected.splice(idx + 1, 0, `bullet||${norm(text)}`);
+      changes.push({ type: "bullet-add", anchor: before, text: norm(text) });
     } else if (op.type === "summary") {
       xml = setParagraphText(xml, para, op.text);
       expected[idx] = `summary||${op.text}`;

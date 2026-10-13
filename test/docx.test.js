@@ -108,6 +108,43 @@ test("applyPlan flags new numbers in bullets and drops them from the summary", a
   assert.ok(r.dropped.some((d) => /Summary edit dropped/.test(d)));
 });
 
+test("typed-glyph bullets and plain tool lists under a skills heading are editable", async () => {
+  const { writeZip } = await import("../src/lib/zip.js");
+  const { P } = await import("./helpers.js");
+  const run = (t, bold = false) => `<w:r><w:rPr>${bold ? "<w:b/>" : ""}<w:sz w:val="20"/></w:rPr><w:t xml:space="preserve">${t}</w:t></w:r>`;
+  const body = [
+    P(run("SAM GLYPH", true)), P(run("Civil Engineer")), P(run("sam@example.com | (304) 555-0100")),
+    P(run("TECHNICAL TOOLS", true)), P(run("AutoCAD, Microsoft Project, STAAD.Pro, ETABS.")),
+    P(run("PROFESSIONAL EXPERIENCE", true)), P(run("Project Engineer, Acme | Jan 2024 - Present")),
+    P(run("▪Prepared structural drawings and reviewed shop drawings for residential projects.")),
+    P(run("▪Performed periodic site inspections to verify work against issued engineering documents.")),
+    P(run("CERTIFICATIONS", true)), P(run("▪OSHA 30-Hour Construction Safety")),
+  ].join("");
+  const xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml"><w:body>${body}<w:sectPr/></w:body></w:document>`;
+  const blocks = parseBlocks(xml);
+  const tools = blocks.find((b) => /^AutoCAD/.test(b.text));
+  assert.equal(tools.kind, "skill");
+  assert.equal(tools.label, "Technical Tools");
+  const b1 = blocks.find((b) => /^▪Prepared/.test(b.text));
+  assert.equal(b1.kind, "bullet");
+  assert.equal(b1.glyph, "▪");
+  assert.equal(b1.locked, false);
+  assert.equal(blocks.find((b) => /^▪OSHA/.test(b.text)).locked, true, "glyph bullets under CERTIFICATIONS stay locked");
+  assert.equal(blocks.find((b) => /^Project Engineer, Acme/.test(b.text)).locked, true);
+
+  const bytes = await writeZip([{ name: "[Content_Types].xml", data: "<Types/>" }, { name: "word/document.xml", data: xml }]);
+  const doc = await openDocx(bytes);
+  const r = applyPlan(doc, {
+    skills: [{ block_id: tools.id, add: ["Civil 3D"] }],
+    bullets: [{ action: "add_after", block_id: b1.id, old: "", new: "", text: "Coordinated submittals with the city reviewer for structural approvals." }],
+  }, {});
+  assert.equal(r.changes.length, 2);
+  assert.match(r.changes[0].after, /ETABS, Civil 3D\.$/);
+  assert.match(r.changes[1].text, /^▪Coordinated submittals/);
+  const doc2 = await openDocx(await saveDocx(doc.zip, r.xml));
+  assert.ok(doc2.blocks.some((b) => b.kind === "bullet" && /^▪Coordinated submittals/.test(b.text)));
+});
+
 // Optional: run against a real master resume when one is available on this machine (never committed).
 const REAL = process.env.CCP_TEST_DOCX;
 test("real resume smoke test (CCP_TEST_DOCX)", { skip: !REAL || !fs.existsSync(REAL) }, async () => {

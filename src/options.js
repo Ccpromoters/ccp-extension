@@ -20,6 +20,8 @@ function fillModels() {
 function syncProviderUi() {
   const p = $("#apiProvider").value;
   const anthropic = p === "anthropic";
+  // Coming back to Anthropic with no custom model name: fall back to the default model.
+  if (anthropic && $("#model").value === "__custom" && !$("#modelCustom").value.trim()) $("#model").value = DEFAULT_MODEL;
   $("#model").classList.toggle("hidden", !anthropic);
   $("#modelCustom").classList.toggle("hidden", anthropic && $("#model").value !== "__custom");
   $("#apiKey").placeholder = anthropic ? "sk-ant-…" : "API key (leave empty for a local server)";
